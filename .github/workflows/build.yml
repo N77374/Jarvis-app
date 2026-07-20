@@ -1,4 +1,4 @@
-name: Build J.A.R.V.I.S. APK
+  name: Build J.A.R.V.I.S. APK
 
 on:
   workflow_dispatch:
@@ -28,7 +28,8 @@ jobs:
 
       - name: Run Buildozer
         run: |
-          buildozer android debug
+          mkdir -p ~/.android && touch ~/.android/repositories.cfg
+          yes | buildozer android debug
         env:
           BUILDOZER_WARN_ON_ROOT: 0
 
