@@ -8,14 +8,19 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.image import Image
 from kivy.core.window import Window
-from kivy.graphics import Color, RoundedRectangle
+from kivy.graphics import Color, RoundedRectangle, Ellipse
 from kivy.clock import Clock
 import datetime
 import re
 import random
+import threading
+import requests
 
-# Configure window so keyboard pushes input field UP above Android navigation bar
+# Set your Gemini API key here
+GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"
+
 Window.softinput_mode = 'below_target'
+
 
 class ChatBubble(BoxLayout):
     def __init__(self, text, is_user=False, **kwargs):
@@ -23,12 +28,12 @@ class ChatBubble(BoxLayout):
         self.orientation = 'vertical'
         self.size_hint_y = None
         self.size_hint_x = 0.85
-        self.padding = [10, 8, 10, 8]
+        self.padding = [12, 10, 12, 10]
         self.pos_hint = {'right': 0.98} if is_user else {'x': 0.02}
 
         self.label = Label(
             text=text,
-            color=(1, 1, 1, 1) if is_user else (0, 1, 0.9, 1),
+            color=(1, 1, 1, 1) if is_user else (0, 0.9, 1, 1),
             size_hint_y=None,
             halign='left',
             valign='top',
@@ -39,26 +44,108 @@ class ChatBubble(BoxLayout):
         self.label.bind(texture_size=self._update_bubble_height)
         self.add_widget(self.label)
 
-        bg_color = (0.0, 0.35, 0.45, 0.85) if is_user else (0.05, 0.15, 0.22, 0.85)
+        bg_color = (0.0, 0.35, 0.5, 0.85) if is_user else (0.08, 0.12, 0.18, 0.85)
         with self.canvas.before:
             Color(*bg_color)
-            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[8])
+            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[12])
         self.bind(pos=self._update_rect, size=self._update_rect)
 
     def _update_bubble_height(self, instance, val):
         self.label.height = val[1]
-        self.height = val[1] + 16
+        self.height = val[1] + 20
 
     def _update_rect(self, instance, val):
         self.rect.pos = self.pos
         self.rect.size = self.size
 
 
+class GeminiPillInputBar(BoxLayout):
+    """Custom Kivy widget designed to replicate the Gemini pill search bar."""
+    def __init__(self, send_callback, **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = 'horizontal'
+        self.size_hint = (0.95, None)
+        self.height = 58
+        self.padding = [12, 6, 8, 6]
+        self.spacing = 6
+        self.pos_hint = {'center_x': 0.5}
+
+        # Background Pill Drawing
+        with self.canvas.before:
+            Color(0.12, 0.13, 0.15, 0.95)  # Dark charcoal pill background
+            self.bg_pill = RoundedRectangle(pos=self.pos, size=self.size, radius=[29])
+        self.bind(pos=self._update_bg, size=self._update_bg)
+
+        # 1. Plus (+) Attachment Button
+        plus_btn = Button(
+            text="+",
+            font_size='22sp',
+            color=(0.85, 0.88, 0.9, 1),
+            size_hint=(None, 1),
+            width=36,
+            background_color=(0, 0, 0, 0)
+        )
+
+        # 2. Text Input Box
+        self.input_field = TextInput(
+            hint_text="Ask J.A.R.V.I.S.",
+            hint_text_color=(0.55, 0.6, 0.65, 1),
+            foreground_color=(1, 1, 1, 1),
+            cursor_color=(0.3, 0.6, 1, 1),
+            multiline=False,
+            font_size='16sp',
+            size_hint=(1, 1),
+            padding=[4, 12, 4, 0],
+            background_color=(0, 0, 0, 0)
+        )
+        self.input_field.bind(on_text_validate=send_callback)
+
+        # 3. Mic Icon Button
+        mic_btn = Button(
+            text="🎙",
+            font_size='18sp',
+            color=(0.85, 0.88, 0.9, 1),
+            size_hint=(None, 1),
+            width=36,
+            background_color=(0, 0, 0, 0)
+        )
+
+        # 4. Circular Blue Send Button (Audio Waves representation)
+        self.send_btn = Button(
+            text="ııı",
+            font_size='18sp',
+            bold=True,
+            color=(1, 1, 1, 1),
+            size_hint=(None, 1),
+            width=46,
+            background_color=(0, 0, 0, 0)
+        )
+        with self.send_btn.canvas.before:
+            Color(0.12, 0.25, 0.55, 1)  # Gemini Deep Blue
+            self.circle = Ellipse(pos=self.send_btn.pos, size=(46, 46))
+        self.send_btn.bind(pos=self._update_circle, size=self._update_circle)
+        self.send_btn.bind(on_release=send_callback)
+
+        # Assembly
+        self.add_widget(plus_btn)
+        self.add_widget(self.input_field)
+        self.add_widget(mic_btn)
+        self.add_widget(self.send_btn)
+
+    def _update_bg(self, instance, val):
+        self.bg_pill.pos = self.pos
+        self.bg_pill.size = self.size
+
+    def _update_circle(self, instance, val):
+        self.circle.pos = (self.send_btn.x, self.send_btn.y + (self.send_btn.height - 46) / 2)
+        self.circle.size = (46, 46)
+
+
 class JarvisApp(App):
     def build(self):
         root = FloatLayout()
 
-        # ================= 1. FULL SCREEN BACKGROUND =================
+        # Background HUD
         try:
             self.bg_image = Image(
                 source='hud_face.png',
@@ -71,20 +158,18 @@ class JarvisApp(App):
         except Exception:
             pass
 
-        # ================= 2. LIVE OVERLAY DATA (TOP) =================
-        # Live UTC Clock Overlay (Top Right)
+        # Top Overlay Status Controls
         self.clock_label = Label(
-            text="14:38:21 (UTC)\n2026.07.21",
+            text="00:00:00\nDATE",
             color=(0, 1, 1, 1),
             font_size='13sp',
             bold=True,
             halign='center',
-            size_hint=(0.3, 0.1),
+            size_hint=(0.35, 0.1),
             pos_hint={'right': 0.98, 'top': 0.98}
         )
         root.add_widget(self.clock_label)
 
-        # Live Suit Telemetry Overlay (Top Left)
         self.diag_label = Label(
             text="[color=00FFCC]POWER CORE: 98%\nSUIT TEMP: 37.5°C[/color]",
             markup=True,
@@ -95,63 +180,31 @@ class JarvisApp(App):
         )
         root.add_widget(self.diag_label)
 
-        # ================= 3. CHAT AREA & INPUT CONTAINER =================
-        # Main container positioned over the center/bottom of screen
+        # Chat Section Container
         chat_container = BoxLayout(
             orientation='vertical',
             padding=[10, 10, 10, 10],
-            spacing=8,
-            size_hint=(1, 0.65),
+            spacing=10,
+            size_hint=(1, 0.68),
             pos_hint={'x': 0, 'y': 0}
         )
 
-        # Scrollable Chat History
         self.scroll_view = ScrollView(size_hint=(1, 1), do_scroll_x=False)
         self.chat_layout = GridLayout(cols=1, spacing=10, size_hint_y=None)
         self.chat_layout.bind(minimum_height=self.chat_layout.setter('height'))
-        
+
         self.scroll_view.add_widget(self.chat_layout)
         chat_container.add_widget(self.scroll_view)
 
-        # Welcome Message
-        self.add_message("J.A.R.V.I.S.: A.R.M.O.R. Full HUD active. All feeds connected, Sir.", is_user=False)
+        self.add_message("J.A.R.V.I.S.: Tactical Core online. Neural uplink ready, Sir.", is_user=False)
 
-        # Input Bar
-        input_container = BoxLayout(
-            orientation='horizontal',
-            size_hint_y=None,
-            height=50,
-            spacing=6
-        )
+        # Gemini Styled Input Bar Integration
+        self.pill_bar = GeminiPillInputBar(send_callback=self.process_command)
+        chat_container.add_widget(self.pill_bar)
 
-        self.input_field = TextInput(
-            hint_text="Ask J.A.R.V.I.S. or enter math...",
-            multiline=False,
-            size_hint_x=0.78,
-            background_color=(0.05, 0.12, 0.18, 0.9),
-            foreground_color=(0, 1, 1, 1),
-            cursor_color=(0, 1, 1, 1)
-        )
-        self.input_field.bind(on_text_validate=self.process_command)
-
-        send_button = Button(
-            text="SEND",
-            size_hint_x=0.22,
-            background_color=(0.0, 0.7, 0.9, 1),
-            color=(1, 1, 1, 1),
-            bold=True
-        )
-        send_button.bind(on_release=self.process_command)
-
-        input_container.add_widget(self.input_field)
-        input_container.add_widget(send_button)
-
-        chat_container.add_widget(input_container)
         root.add_widget(chat_container)
 
-        # Start HUD Clock Updates
         Clock.schedule_interval(self.update_tactical_hud, 1.0)
-
         return root
 
     def update_tactical_hud(self, dt):
@@ -167,38 +220,44 @@ class JarvisApp(App):
         Clock.schedule_once(lambda dt: setattr(self.scroll_view, 'scroll_y', 0), 0.1)
 
     def process_command(self, instance):
-        if isinstance(instance, Button):
-            command = self.input_field.text.strip()
-        else:
-            command = instance.text.strip()
-
+        command = self.pill_bar.input_field.text.strip()
         if not command:
             return
 
         self.add_message(f"You: {command}", is_user=True)
-        self.input_field.text = ""
+        self.pill_bar.input_field.text = ""
 
-        command_lower = command.lower()
+        # Local Math Handling
         clean_math = re.sub(r'[^0-9\+\-\*\/\.\(\)\s]', '', command)
-        
         if clean_math.strip() and any(op in clean_math for op in ['+', '-', '*', '/']):
             try:
                 result = eval(clean_math, {"__builtins__": None}, {})
-                reply = f"J.A.R.V.I.S.: Result = {result}"
+                self.add_message(f"J.A.R.V.I.S.: Result = {result}", is_user=False)
+                return
             except Exception:
-                reply = "J.A.R.V.I.S.: Invalid mathematical expression, Sir."
-        elif "date" in command_lower:
-            today = datetime.date.today().strftime("%B %d, %Y")
-            reply = f"J.A.R.V.I.S.: Today's date is {today}, Sir."
-        elif "time" in command_lower:
-            now = datetime.datetime.now().strftime("%I:%M %p")
-            reply = f"J.A.R.V.I.S.: Current time is {now}, Sir."
-        elif "hello" in command_lower or "hi" in command_lower:
-            reply = "J.A.R.V.I.S.: Greetings, Sir. Systems fully operational."
-        else:
-            reply = f"J.A.R.V.I.S.: Command logged: '{command}'"
+                pass
 
-        self.add_message(reply, is_user=False)
+        # Query Gemini API via Thread
+        threading.Thread(target=self.fetch_ai_response, args=(command,), daemon=True).start()
+
+    def fetch_ai_response(self, user_query):
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        headers = {"Content-Type": "application/json"}
+        prompt = f"You are J.A.R.V.I.S., an advanced AI assistant created for Tony Stark. Address the user respectfully as 'Sir'. Keep answers concise, clear, and helpful. Query: {user_query}"
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=12)
+            if response.status_code == 200:
+                data = response.json()
+                reply_text = data['candidates'][0]['content']['parts'][0]['text'].strip()
+                reply = f"J.A.R.V.I.S.: {reply_text}"
+            else:
+                reply = f"J.A.R.V.I.S.: Uplink status error code {response.status_code}, Sir."
+        except Exception:
+            reply = "J.A.R.V.I.S.: Network uplink unavailable. Check your internet connection, Sir."
+
+        Clock.schedule_once(lambda dt: self.add_message(reply, is_user=False))
 
 
 if __name__ == '__main__':
