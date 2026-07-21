@@ -17,10 +17,9 @@ import threading
 import requests
 
 # Set your Gemini API key here
-GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"
+GEMINI_API_KEY = "AQ.Ab8RN6IBFYx2PlZmQeis5wN9yj1UPtBfoKIo4FgU5GkEX7vE_g"
 
 Window.softinput_mode = 'below_target'
-
 
 class ChatBubble(BoxLayout):
     def __init__(self, text, is_user=False, **kwargs):
