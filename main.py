@@ -21,6 +21,7 @@ GEMINI_API_KEY = "AQ.Ab8RN6IBFYx2PlZmQeis5wN9yj1UPtBfoKIo4FgU5GkEX7vE_g"
 
 Window.softinput_mode = 'below_target'
 
+
 class ChatBubble(BoxLayout):
     def __init__(self, text, is_user=False, **kwargs):
         super().__init__(**kwargs)
@@ -85,7 +86,7 @@ class GeminiPillInputBar(BoxLayout):
             background_color=(0, 0, 0, 0)
         )
 
-        # 2. Text Input Box
+        # 2. Text Input Field
         self.input_field = TextInput(
             hint_text="Ask J.A.R.V.I.S.",
             hint_text_color=(0.55, 0.6, 0.65, 1),
@@ -109,7 +110,7 @@ class GeminiPillInputBar(BoxLayout):
             background_color=(0, 0, 0, 0)
         )
 
-        # 4. Circular Blue Send Button (Audio Waves representation)
+        # 4. Circular Blue Action/Send Button
         self.send_btn = Button(
             text="ııı",
             font_size='18sp',
@@ -195,9 +196,9 @@ class JarvisApp(App):
         self.scroll_view.add_widget(self.chat_layout)
         chat_container.add_widget(self.scroll_view)
 
-        self.add_message("J.A.R.V.I.S.: Tactical Core online. Neural uplink ready, Sir.", is_user=False)
+        self.add_message("J.A.R.V.I.S.: Tactical Core online. Real-time Search Uplink active, Sir.", is_user=False)
 
-        # Gemini Styled Input Bar Integration
+        # Gemini Styled Input Bar
         self.pill_bar = GeminiPillInputBar(send_callback=self.process_command)
         chat_container.add_widget(self.pill_bar)
 
@@ -236,29 +237,40 @@ class JarvisApp(App):
             except Exception:
                 pass
 
-        # Query Gemini API via Thread
+        # Query Gemini API with Google Search Grounding in background thread
         threading.Thread(target=self.fetch_ai_response, args=(command,), daemon=True).start()
 
     def fetch_ai_response(self, user_query):
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        # Gemini 2.5 Flash endpoint
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
         headers = {"Content-Type": "application/json"}
-        prompt = f"You are J.A.R.V.I.S., an advanced AI assistant created for Tony Stark. Address the user respectfully as 'Sir'. Keep answers concise, clear, and helpful. Query: {user_query}"
-        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        
+        prompt = f"You are J.A.R.V.I.S., an advanced AI assistant built for Tony Stark. Address the user respectfully as 'Sir'. Keep answers concise, clear, and direct. Query: {user_query}"
+        
+        # JSON payload including the Google Search tool parameter for real-time grounding
+        payload = {
+            "contents": [{
+                "parts": [{"text": prompt}]
+            }],
+            "tools": [
+                {"google_search": {}}  # Enables live Google Search access
+            ]
+        }
 
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=12)
+            response = requests.post(url, json=payload, headers=headers, timeout=15)
             if response.status_code == 200:
                 data = response.json()
                 reply_text = data['candidates'][0]['content']['parts'][0]['text'].strip()
                 reply = f"J.A.R.V.I.S.: {reply_text}"
             else:
-                reply = f"J.A.R.V.I.S.: Uplink status error code {response.status_code}, Sir."
+                reply = f"J.A.R.V.I.S.: Uplink error {response.status_code}. Sir, verify your API key."
         except Exception:
-            reply = "J.A.R.V.I.S.: Network uplink unavailable. Check your internet connection, Sir."
+            reply = "J.A.R.V.I.S.: Real-time satellite link unavailable. Check network connection, Sir."
 
         Clock.schedule_once(lambda dt: self.add_message(reply, is_user=False))
 
 
 if __name__ == '__main__':
     JarvisApp().run()
-        
+                 
