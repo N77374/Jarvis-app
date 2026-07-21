@@ -15,9 +15,10 @@ import re
 import random
 import threading
 import requests
+import os
 
-# Set your Gemini API key here
-GEMINI_API_KEY = "AQ.Ab8RN6IBFYx2PlZmQeis5wN9yj1UPtBfoKIo4FgU5GkEX7vE_g"
+# Securely fetches the API key from your GitHub Repository Secret
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 Window.softinput_mode = 'below_target'
 
@@ -60,7 +61,7 @@ class ChatBubble(BoxLayout):
 
 
 class GeminiPillInputBar(BoxLayout):
-    """Custom Kivy widget designed to replicate the Gemini pill search bar."""
+    """Custom Kivy widget replicating the Gemini pill search bar design."""
     def __init__(self, send_callback, **kwargs):
         super().__init__(**kwargs)
         self.orientation = 'horizontal'
@@ -241,19 +242,17 @@ class JarvisApp(App):
         threading.Thread(target=self.fetch_ai_response, args=(command,), daemon=True).start()
 
     def fetch_ai_response(self, user_query):
-        # Gemini 2.5 Flash endpoint
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
         headers = {"Content-Type": "application/json"}
         
         prompt = f"You are J.A.R.V.I.S., an advanced AI assistant built for Tony Stark. Address the user respectfully as 'Sir'. Keep answers concise, clear, and direct. Query: {user_query}"
         
-        # JSON payload including the Google Search tool parameter for real-time grounding
         payload = {
             "contents": [{
                 "parts": [{"text": prompt}]
             }],
             "tools": [
-                {"google_search": {}}  # Enables live Google Search access
+                {"google_search": {}}  # Enables live real-time Google searching
             ]
         }
 
@@ -264,7 +263,7 @@ class JarvisApp(App):
                 reply_text = data['candidates'][0]['content']['parts'][0]['text'].strip()
                 reply = f"J.A.R.V.I.S.: {reply_text}"
             else:
-                reply = f"J.A.R.V.I.S.: Uplink error {response.status_code}. Sir, verify your API key."
+                reply = f"J.A.R.V.I.S.: Uplink error {response.status_code}. Sir, verify your API secret."
         except Exception:
             reply = "J.A.R.V.I.S.: Real-time satellite link unavailable. Check network connection, Sir."
 
@@ -273,4 +272,3 @@ class JarvisApp(App):
 
 if __name__ == '__main__':
     JarvisApp().run()
-                 
