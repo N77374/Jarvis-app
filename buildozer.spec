@@ -3,13 +3,17 @@ title = JARVIS
 package.name = jarvisapp
 package.domain = org.n77374
 source.dir = .
-source.include_exts = py,png,jpg,kv,atlas
+source.include_exts = py,png,jpg,jpeg,mp4,kv,atlas
 version = 0.1
 requirements = python3,kivy
 
 orientation = portrait
 osx.kivy_version = 2.1.0
-fullscreen = 1
+fullscreen = 0
+
+# Adjust layout automatically when keyboard opens
+android.window_softinput_mode = below_target
+
 android.archs = arm64-v8a
 
 # Android SDK / API configuration
