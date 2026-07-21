@@ -5,99 +5,99 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
-from kivy.uix.widget import Widget
-from kivy.graphics import Color, Line, Ellipse
-from kivy.properties import NumericProperty
+from kivy.uix.video import Video
+from kivy.graphics import Color, RoundedRectangle
 from kivy.clock import Clock
 import datetime
-import math
+import re
 
-# --- 1. J.A.R.V.I.S. Holographic Arc Reactor (Canvas Widget) ---
-class JarvisHologram(Widget):
-    angle_outer = NumericProperty(0)
-    angle_inner = NumericProperty(0)
-    pulse_brightness = NumericProperty(0.8)
-
-    def __init__(self, **kwargs):
+# Custom Widget for Bubble Backgrounds
+class ChatBubble(BoxLayout):
+    def __init__(self, text, is_user=False, **kwargs):
         super().__init__(**kwargs)
-        self.bind(pos=self.update_canvas, size=self.update_canvas)
-        self.bind(angle_outer=self.update_canvas, angle_inner=self.update_canvas, pulse_brightness=self.update_canvas)
-        self.pulse_dir = 1
+        self.orientation = 'vertical'
+        self.size_hint_y = None
+        self.size_hint_x = 0.8
+        self.padding = [12, 8, 12, 8]
         
-        # Animate rotation and breathing pulse
-        Clock.schedule_interval(self.animate_hologram, 1/30.0)
+        # Position user bubbles on the right, J.A.R.V.I.S. on the left
+        self.pos_hint = {'right': 0.98} if is_user else {'x': 0.02}
 
-    def animate_hologram(self, dt):
-        # Rotate outer ring clockwise, inner ring counter-clockwise
-        self.angle_outer = (self.angle_outer + 1.5) % 360
-        self.angle_inner = (self.angle_inner - 2.5) % 360
+        # Create message text
+        self.label = Label(
+            text=text,
+            color=(1, 1, 1, 1) if is_user else (0, 1, 0.9, 1),
+            size_hint_y=None,
+            halign='left',
+            valign='top',
+            font_size='15sp'
+        )
+        self.label.bind(width=lambda instance, value: setattr(instance, 'text_size', (value, None)))
+        self.label.bind(texture_size=self._update_bubble_height)
+        self.add_widget(self.label)
 
-        # Breathing glow effect
-        self.pulse_brightness += 0.01 * self.pulse_dir
-        if self.pulse_brightness >= 1.0:
-            self.pulse_dir = -1
-        elif self.pulse_brightness <= 0.4:
-            self.pulse_dir = 1
+        # Bubble background colors
+        bg_color = (0.0, 0.35, 0.45, 0.85) if is_user else (0.08, 0.12, 0.18, 0.9)
+        
+        with self.canvas.before:
+            Color(*bg_color)
+            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[12, 12, 12, 12])
+        self.bind(pos=self._update_rect, size=self._update_rect)
 
-    def update_canvas(self, *args):
-        self.canvas.clear()
-        cx, cy = self.center_x, self.center_y
-        b = self.pulse_brightness
+    def _update_bubble_height(self, instance, value):
+        self.label.height = value[1]
+        self.height = value[1] + 16
 
-        with self.canvas:
-            # Core Center Glow
-            Color(0.0, 0.9, 1.0, b * 0.9)
-            Ellipse(pos=(cx - 20, cy - 20), size=(40, 40))
-
-            # Inner Dashed Ring (Counter-Clockwise)
-            Color(0.0, 0.8, 1.0, b)
-            Line(circle=(cx, cy, 45, self.angle_inner, self.angle_inner + 260), width=2)
-            Line(circle=(cx, cy, 55, self.angle_inner + 90, self.angle_inner + 180), width=1.5)
-
-            # Outer Dashed Ring (Clockwise)
-            Color(0.0, 1.0, 0.8, b * 0.7)
-            Line(circle=(cx, cy, 75, self.angle_outer, self.angle_outer + 120), width=2)
-            Line(circle=(cx, cy, 75, self.angle_outer + 180, self.angle_outer + 300), width=2)
-
-            # Static Outer Boundary Circle
-            Color(0.0, 0.6, 0.8, 0.3)
-            Line(circle=(cx, cy, 85), width=1)
+    def _update_rect(self, instance, value):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
 
 
-# --- 2. Main Application Interface ---
 class JarvisApp(App):
     def build(self):
         root = BoxLayout(orientation='vertical', padding=10, spacing=10)
 
-        # 1. Holographic Engine (Fixed Height)
-        self.hologram = JarvisHologram(size_hint_y=None, height=180)
-        root.add_widget(self.hologram)
+        # 1. Video UI Header
+        try:
+            self.jarvis_video = Video(
+                source='jarvis_ui.mp4',
+                state='play',
+                options={'eos': 'loop'},
+                size_hint=(1, None),
+                height=200,
+                allow_stretch=True
+            )
+            root.add_widget(self.jarvis_video)
+        except Exception:
+            pass
 
-        # 2. Chatbox ScrollView
+        # 2. Scrollable Chatbox Container
         self.scroll_view = ScrollView(size_hint=(1, 1), do_scroll_x=False)
-        self.chat_layout = GridLayout(cols=1, spacing=10, size_hint_y=None)
+        self.chat_layout = GridLayout(cols=1, spacing=12, size_hint_y=None)
         self.chat_layout.bind(minimum_height=self.chat_layout.setter('height'))
         
         self.scroll_view.add_widget(self.chat_layout)
         root.add_widget(self.scroll_view)
 
-        # Welcome Message
-        self.add_message("J.A.R.V.I.S.: Arc Reactor core online. Systems nominal.", is_user=False)
+        # Initial Welcome
+        self.add_message("J.A.R.V.I.S.: Systems active. Online and ready, Sir.", is_user=False)
 
-        # 3. Input & Send Bar
+        # 3. Input Bar
         input_container = BoxLayout(orientation='horizontal', size_hint_y=None, height=50, spacing=5)
 
         self.input_field = TextInput(
-            hint_text="Type command here, Sir...",
+            hint_text="Ask J.A.R.V.I.S. a question...",
             multiline=False,
-            size_hint_x=0.75
+            size_hint_x=0.75,
+            background_color=(0.1, 0.15, 0.2, 1),
+            foreground_color=(1, 1, 1, 1)
         )
         self.input_field.bind(on_text_validate=self.process_command)
 
         send_button = Button(
             text="Send",
             size_hint_x=0.25,
-            background_color=(0.0, 0.7, 1.0, 1)
+            background_color=(0.0, 0.6, 0.9, 1)
         )
         send_button.bind(on_release=self.process_command)
 
@@ -109,25 +109,16 @@ class JarvisApp(App):
         return root
 
     def add_message(self, text, is_user=False):
-        align = "right" if is_user else "left"
-        color = "00FFCC" if is_user else "FFFFFF"
-        
-        lbl = Label(
-            text=f"[color={color}]{text}[/color]",
-            markup=True,
-            size_hint_y=None,
-            halign=align,
-            valign="middle",
-            font_size="16sp"
-        )
-        lbl.bind(width=lambda instance, value: setattr(instance, 'text_size', (value, None)))
-        lbl.bind(texture_size=lambda instance, value: setattr(instance, 'height', value[1] + 10))
-        
-        self.chat_layout.add_widget(lbl)
+        bubble = ChatBubble(text=text, is_user=is_user)
+        self.chat_layout.add_widget(bubble)
         Clock.schedule_once(lambda dt: setattr(self.scroll_view, 'scroll_y', 0), 0.1)
 
     def process_command(self, instance):
-        command = self.input_field.text.strip()
+        if isinstance(instance, Button):
+            command = self.input_field.text.strip()
+        else:
+            command = instance.text.strip()
+
         if not command:
             return
 
@@ -136,16 +127,27 @@ class JarvisApp(App):
 
         command_lower = command.lower()
 
-        if "date" in command_lower:
+        # Math Processing Logic
+        # Extracts math expressions like 2+2, 15 * 3, 100 / 5, etc.
+        clean_math = re.sub(r'[^0-9\+\-\*\/\.\(\)\s]', '', command)
+        
+        if clean_math.strip() and any(op in clean_math for op in ['+', '-', '*', '/']):
+            try:
+                # Safely calculate math query
+                result = eval(clean_math, {"__builtins__": None}, {})
+                reply = f"J.A.R.V.I.S.: Calculation complete. Result: {result}"
+            except Exception:
+                reply = "J.A.R.V.I.S.: Unable to parse mathematical expression, Sir."
+        elif "date" in command_lower:
             today = datetime.date.today().strftime("%B %d, %Y")
             reply = f"J.A.R.V.I.S.: Today's date is {today}, Sir."
         elif "time" in command_lower:
             now = datetime.datetime.now().strftime("%I:%M %p")
-            reply = f"J.A.R.V.I.S.: The current time is {now}, Sir."
+            reply = f"J.A.R.V.I.S.: Current time is {now}, Sir."
         elif "hello" in command_lower or "hi" in command_lower:
-            reply = "J.A.R.V.I.S.: Greetings Sir. All diagnostics green."
+            reply = "J.A.R.V.I.S.: Greetings, Sir. How may I assist you?"
         else:
-            reply = f"J.A.R.V.I.S.: Command received: '{command}'"
+            reply = f"J.A.R.V.I.S.: Command logged: '{command}'"
 
         self.add_message(reply, is_user=False)
 
