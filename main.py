@@ -15,10 +15,9 @@ import re
 import random
 import threading
 import requests
-import os
 
-# Securely fetches the API key from your GitHub Repository Secret
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+# Placeholder string that build.yml will replace with your GitHub Secret during APK compilation
+GEMINI_API_KEY = "GEMINI_API_KEY_PLACEHOLDER"
 
 Window.softinput_mode = 'below_target'
 
@@ -272,3 +271,4 @@ class JarvisApp(App):
 
 if __name__ == '__main__':
     JarvisApp().run()
+        
