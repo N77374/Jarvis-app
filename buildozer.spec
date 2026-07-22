@@ -1,10 +1,10 @@
 [app]
 
 # (str) Title of your application
-title = Jarvis App
+title = Jarvis
 
 # (str) Package name
-package.name = jarvisapp
+package.name = jarvis
 
 # (str) Package domain (needed for android/ios packaging)
 package.domain = org.test
@@ -13,14 +13,14 @@ package.domain = org.test
 source.dir = .
 
 # (list) Source files to include
-source.include_exts = py,png,jpg,kv,atlas,json
+source.include_exts = py,png,jpg,kv,atlas
 
 # (str) Application versioning
 version = 0.1
 
 # (list) Application requirements
-# Note: Keep comma-separated with NO spaces around commas
-requirements = python3,kivy==2.3.0,requests,urllib3,certifi,chardet,idna
+# Pinned to Python 3.11 and Kivy 2.3.0 to avoid experimental Python 3.14 C-API crashes
+requirements = python3==3.11.0,hostpython3==3.11.0,kivy==2.3.0
 
 # (str) Supported orientation
 orientation = portrait
@@ -28,26 +28,23 @@ orientation = portrait
 # (bool) Indicate if the application should be fullscreen
 fullscreen = 0
 
-# (list) Permissions
-android.permissions = INTERNET,ACCESS_NETWORK_STATE
+# (list) Permissions required
+android.permissions = INTERNET,RECORD_AUDIO,MODIFY_AUDIO_SETTINGS
 
 # (int) Target Android API
 android.api = 33
 
 # (int) Minimum API supported
-android.minapi = 21
+android.minapi = 24
 
 # (str) Android NDK version
 android.ndk = 25b
 
-# (bool) Use private data dir (True) or public storage (False)
-android.private_storage = True
-
-# (bool) Accept SDK licenses automatically
+# (bool) Accept SDK license automatically
 android.accept_sdk_license = True
 
-# (str) Architectures to build for
-android.archs = arm64-v8a, armeabi-v7a
+# (str) Bootstrap to use for android
+p4a.bootstrap = sdl2
 
 [buildozer]
 
