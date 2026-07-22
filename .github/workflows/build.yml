@@ -50,14 +50,6 @@ jobs:
         run: |
           sed -i "s/GEMINI_API_KEY_PLACEHOLDER/${{ secrets.GEMINI_API_KEY }}/g" main.py
 
-      - name: Ensure Stable NDK Version in buildozer.spec
-        run: |
-          if [ -f buildozer.spec ]; then
-            sed -i 's/^#\?\s*android.ndk\s*=.*/android.ndk = 25b/' buildozer.spec
-            sed -i 's/^#\?\s*android.api\s*=.*/android.api = 33/' buildozer.spec
-            sed -i 's/^#\?\s*android.minapi\s*=.*/android.minapi = 21/' buildozer.spec
-          fi
-
       - name: Build APK with Buildozer
         run: |
           buildozer -v android debug
