@@ -42,10 +42,10 @@ jobs:
             libssl-dev \
             lld
 
-      - name: Install Buildozer and Cython
+      - name: Install Buildozer, Cython, and P4A
         run: |
           pip install --upgrade pip setuptools wheel
-          pip install "cython<3.0" buildozer
+          pip install "cython<3.0" buildozer python-for-android
 
       - name: Inject API Key into main.py (if exists)
         run: |
