@@ -39,16 +39,19 @@ jobs:
             zlib1g-dev \
             cmake \
             libffi-dev \
-            libssl-dev
+            libssl-dev \
+            lld
 
       - name: Install Buildozer and Cython
         run: |
-          pip install --upgrade pip
+          pip install --upgrade pip setuptools wheel
           pip install "cython<3.0" buildozer
 
-      - name: Inject API Key into main.py
+      - name: Inject API Key into main.py (if exists)
         run: |
-          sed -i "s/GEMINI_API_KEY_PLACEHOLDER/${{ secrets.GEMINI_API_KEY }}/g" main.py
+          if [ -f main.py ]; then
+            sed -i "s/GEMINI_API_KEY_PLACEHOLDER/${{ secrets.GEMINI_API_KEY }}/g" main.py
+          fi
 
       - name: Build APK with Buildozer
         run: |
