@@ -43,15 +43,18 @@ jobs:
             lld \
             build-essential
 
-      - name: Install Buildozer and Cython
+      - name: Install Buildozer, Cython, and Virtualenv
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          python -m pip install "cython==0.29.33" "buildozer==1.5.0"
+          # Added virtualenv as it is required by python-for-android
+          # Removed strict version pinning for buildozer to get the latest stable fixes
+          python -m pip install "cython<3.0.0" buildozer virtualenv
 
       - name: Inject API Key into main.py
         run: |
+          # Changed sed delimiter to '#' to prevent failure if the API key contains slashes
           if [ -f main.py ]; then
-            sed -i "s/GEMINI_API_KEY_PLACEHOLDER/${{ secrets.GEMINI_API_KEY }}/g" main.py
+            sed -i "s#GEMINI_API_KEY_PLACEHOLDER#${{ secrets.GEMINI_API_KEY }}#g" main.py
           fi
 
       - name: Build APK with Buildozer
