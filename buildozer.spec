@@ -1,33 +1,56 @@
 [app]
-title = JARVIS
+
+# (str) Title of your application
+title = Jarvis App
+
+# (str) Package name
 package.name = jarvisapp
+
+# (str) Package domain (needed for android/ios packaging)
 package.domain = org.n77374
+
+# (str) Source code where the main.py live
 source.dir = .
-source.include_exts = py,png,jpg,jpeg,mp4,kv,atlas
+
+# (list) Source files to include (let empty to include all the files)
+source.include_exts = py,png,jpg,kv,atlas
+
+# (str) Application versioning (method 1)
 version = 0.1
 
-# Network and Kivy requirements for LLM API integration
-requirements = python3,kivy,requests,urllib3,certifi,charset_normalizer,idna
+# (list) Application requirements
+# Added requests, urllib3, certifi, chardet, idna so HTTPS API calls work on mobile
+requirements = python3,kivy,requests,urllib3,certifi,chardet,idna
 
-orientation = portrait
-osx.kivy_version = 2.1.0
-fullscreen = 0
+# (list) Permissions
+# Required for internet access (Gemini API) and voice features
+android.permissions = INTERNET,RECORD_AUDIO
 
-# Adjust layout automatically when keyboard opens
-android.window_softinput_mode = below_target
-
-# Android permissions to allow internet connection
-android.permissions = INTERNET, ACCESS_NETWORK_STATE
-
-android.archs = arm64-v8a
-
-# Android SDK / API configuration
+# (int) Target Android API, should be as high as possible.
 android.api = 33
+
+# (int) Minimum API required
 android.minapi = 21
-android.ndk_api = 21
+
+# (str) Android NDK version to use (Pinned to 25b to fix compilation failure)
+android.ndk = 25b
+
+# (bool) If True, then skip hosting the project
 android.skip_update = False
+
+# (bool) Accept SDK license automatically
 android.accept_sdk_license = True
 
+# (str) The Android arch to build for
+android.archs = arm64-v8a, armeabi-v7a
+
+# (bool) Copy library instead of making a libpymodules.so
+android.copy_libs = 1
+
 [buildozer]
+
+# (int) Log level (0 = error only, 1 = info, 2 = debug (with command output))
 log_level = 2
-warn_on_root = 0
+
+# (int) Display warning if buildozer is run as root (0 = disable, 1 = enable)
+warn_on_root = 1
