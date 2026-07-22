@@ -18,8 +18,9 @@ source.include_exts = py,png,jpg,kv,atlas
 # (str) Application versioning
 version = 0.1
 
-# (list) Application requirements (Cleaned for p4a compatibility)
-requirements = python3,kivy,requests
+# (list) Application requirements (Added missing requests dependencies)
+# IMPORTANT: If your Jarvis app imports google-generativeai, kivymd, or speechrecognition, you MUST add them to this list.
+requirements = python3,kivy,requests,urllib3,certifi,charset_normalizer,idna
 
 # (list) Permissions
 android.permissions = INTERNET,RECORD_AUDIO
@@ -47,8 +48,8 @@ android.copy_libs = 1
 
 [buildozer]
 
-# (int) Log level (Set to 1 so mobile logs are short and readable)
-log_level = 1
+# (int) Log level (Changed to 2 for comprehensive debugging as requested by the error log)
+log_level = 2
 
 # (int) Display warning if run as root
 warn_on_root = 1
