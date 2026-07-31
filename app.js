@@ -53,6 +53,22 @@ function pickVoice(voices) {
   return male || langMatches[0];
 }
 
+let voiceWarningShown = false;
+function checkVoiceAvailability() {
+  if (voiceWarningShown) return;
+  const voices = speechSynthesis.getVoices();
+  if (!voices.length) return; // not loaded yet
+  voiceWarningShown = true;
+  const match = pickVoice(voices);
+  if (!match && voiceLang === 'gu-IN') {
+    addEntry('sys', 'No Gujarati voice found on this phone — replies will sound in a fallback English accent until you install one (Phone Settings → Languages & input → Text-to-speech output → Install voice data → Gujarati).');
+  }
+}
+if ('speechSynthesis' in window) {
+  speechSynthesis.onvoiceschanged = checkVoiceAvailability;
+  checkVoiceAvailability();
+}
+
 function speak(text) {
   addEntry('jarvis', text);
   setState('speaking', 'Speaking');
@@ -240,14 +256,33 @@ async function handleCommand(text) {
   speak("I don't have a command for that yet.");
 }
 
+const WEATHER_CODES = {
+  0: 'clear sky', 1: 'mostly clear', 2: 'partly cloudy', 3: 'overcast',
+  45: 'foggy', 48: 'foggy', 51: 'light drizzle', 53: 'drizzle', 55: 'heavy drizzle',
+  61: 'light rain', 63: 'rain', 65: 'heavy rain', 71: 'light snow', 73: 'snow',
+  75: 'heavy snow', 80: 'rain showers', 81: 'rain showers', 82: 'heavy rain showers',
+  95: 'thunderstorm', 96: 'thunderstorm with hail', 99: 'severe thunderstorm',
+};
+
 async function weatherReply() {
+  const city = settings.city || 'Ahmedabad';
   try {
-    const city = settings.city ? encodeURIComponent(settings.city) : '';
-    const r = await fetch(`https://wttr.in/${city}?format=%C+%t`);
-    const text = await r.text();
-    speak(text.trim() || 'Weather unavailable.');
+    const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`);
+    const geoData = await geoRes.json();
+    if (!geoData.results || !geoData.results.length) {
+      speak(`${city} maate weather nathi malyu.`);
+      return;
+    }
+    const { latitude, longitude, name } = geoData.results[0];
+
+    const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code`);
+    const wData = await wRes.json();
+    const temp = Math.round(wData?.current?.temperature_2m);
+    const desc = WEATHER_CODES[wData?.current?.weather_code] || 'normal';
+
+    speak(`${name} ma atyare ${desc} che, temperature ${temp} degrees celsius che.`);
   } catch {
-    speak("No internet, can't fetch weather.");
+    speak("Weather fetch nathi thayu, internet check karje.");
   }
 }
 
