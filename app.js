@@ -11,8 +11,11 @@ const clock = $('clock');
 
 let settings = JSON.parse(localStorage.getItem('jarvisSettings') || '{}');
 let wakeEnabled = settings.wakeEnabled || false;
+let voiceLang = settings.voiceLang || 'gu-IN';
 let recognition = null;
 let mode = 'idle'; // idle | wake-listening | command-listening | processing | speaking
+
+const LANG_NAMES = { 'gu-IN': 'Gujarati', 'en-US': 'English' };
 
 // ---------- utility ----------
 
@@ -37,6 +40,11 @@ function speak(text) {
   if ('speechSynthesis' in window) {
     const u = new SpeechSynthesisUtterance(text);
     u.rate = 1.05;
+    u.lang = voiceLang;
+    const voices = speechSynthesis.getVoices();
+    const match = voices.find(v => v.lang === voiceLang) ||
+                  voices.find(v => v.lang && v.lang.startsWith(voiceLang.split('-')[0]));
+    if (match) u.voice = match;
     u.onend = () => afterSpeak();
     speechSynthesis.cancel();
     speechSynthesis.speak(u);
@@ -94,7 +102,7 @@ function listenForCommand() {
   const rec = new SpeechRec();
   rec.continuous = false;
   rec.interimResults = false;
-  rec.lang = 'en-US';
+  rec.lang = voiceLang;
   rec.onresult = (e) => {
     const text = e.results[0][0].transcript;
     addEntry('user', text);
@@ -201,30 +209,46 @@ function openApp(name) {
 // ---------- settings drawer ----------
 
 const drawer = $('drawer');
+const langBtns = { 'gu-IN': $('langGuBtn'), 'en-US': $('langEnBtn') };
+
+function highlightLangBtn() {
+  Object.entries(langBtns).forEach(([code, btn]) => {
+    btn.classList.toggle('primary', code === voiceLang);
+  });
+}
+
 $('settingsBtn').onclick = () => {
   $('cityInput').value = settings.city || '';
   $('proxyInput').value = settings.proxyUrl || '';
+  highlightLangBtn();
   drawer.classList.add('open');
 };
 $('closeSettingsBtn').onclick = () => drawer.classList.remove('open');
 $('wakeOnBtn').onclick = () => { wakeEnabled = true; };
 $('wakeOffBtn').onclick = () => { wakeEnabled = false; };
 
+Object.entries(langBtns).forEach(([code, btn]) => {
+  btn.onclick = () => { voiceLang = code; highlightLangBtn(); };
+});
+
 $('saveSettingsBtn').onclick = () => {
   settings.city = $('cityInput').value.trim();
   settings.proxyUrl = $('proxyInput').value.trim();
   settings.wakeEnabled = wakeEnabled;
+  settings.voiceLang = voiceLang;
   localStorage.setItem('jarvisSettings', JSON.stringify(settings));
   drawer.classList.remove('open');
-  wakeHint.textContent = 'Wake-word listening: ' + (wakeEnabled ? 'ON' : 'OFF — enable in settings');
+  wakeHint.textContent = 'Wake-word listening: ' + (wakeEnabled ? 'ON' : 'OFF — enable in settings') +
+    ' · Listening in: ' + (LANG_NAMES[voiceLang] || voiceLang);
   if (wakeEnabled) startWakeListening();
   else setState('idle', 'Standby');
 };
 
 // ---------- init ----------
+wakeHint.textContent = 'Wake-word listening: ' + (settings.wakeEnabled ? 'ON' : 'OFF — enable in settings') +
+  ' · Listening in: ' + (LANG_NAMES[voiceLang] || voiceLang);
 if (settings.wakeEnabled) {
   wakeEnabled = true;
-  wakeHint.textContent = 'Wake-word listening: ON';
   startWakeListening();
 }
 
