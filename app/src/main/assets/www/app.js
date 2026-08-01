@@ -11,6 +11,18 @@ const log = $('log'), micBtn = $('micBtn'), wakeHint = $('wakeHint');
 const clock = $('clock');
 
 let settings = JSON.parse(localStorage.getItem('jarvisSettings') || '{}');
+
+// Auto-fill the AI backend URL from the app's build-time secret, if the
+// user hasn't manually set one — so a freshly installed APK works
+// out of the box with no setup step required.
+if (!settings.proxyUrl && window.AndroidBridge && window.AndroidBridge.getDefaultProxyUrl) {
+  const defaultUrl = window.AndroidBridge.getDefaultProxyUrl();
+  if (defaultUrl) {
+    settings.proxyUrl = defaultUrl;
+    localStorage.setItem('jarvisSettings', JSON.stringify(settings));
+  }
+}
+
 let wakeEnabled = settings.wakeEnabled || false;
 const voiceLang = 'en-US';
 let recognition = null;
