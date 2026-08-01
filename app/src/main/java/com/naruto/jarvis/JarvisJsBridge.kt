@@ -67,6 +67,9 @@ class JarvisJsBridge(private val activity: MainActivity) {
     fun isAccessibilityEnabled(): Boolean = JarvisAccessibilityService.instance != null
 
     @JavascriptInterface
+    fun getDefaultProxyUrl(): String = com.naruto.jarvis.BuildConfig.PROXY_BASE_URL
+
+    @JavascriptInterface
     fun openAccessibilitySettings() {
         activity.runOnUiThread { activity.openAccessibilitySettings() }
     }
