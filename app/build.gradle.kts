@@ -6,8 +6,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// Secrets: prefer CI environment variables (set as GitHub Actions secrets),
-// fall back to local.properties for local builds. Never hardcode/commit these.
+// Secrets: prefer CI environment variables, fall back to local.properties for local builds.
 val localProps = Properties()
 val localPropsFile = rootProject.file("local.properties")
 if (localPropsFile.exists()) {
@@ -27,7 +26,6 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        buildConfigField("String", "PICOVOICE_ACCESS_KEY", "\"${secret("PICOVOICE_ACCESS_KEY")}\"")
         buildConfigField("String", "PROXY_BASE_URL", "\"${secret("PROXY_BASE_URL")}\"")
     }
 
@@ -56,7 +54,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.2")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("ai.picovoice:porcupine-android:3.0.2")
+    implementation("com.alphacephei:vosk-android:0.3.47@aar") { isTransitive = true }
+    implementation("net.java.dev.jna:jna:5.13.0@aar")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 }
