@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Jarvis</string>
+    <string name="accessibility_service_description">Lets Jarvis read on-screen elements and tap them on your behalf, for voice-controlled device actions like opening apps and pressing buttons.</string>
+</resources>
