@@ -4,69 +4,106 @@ import android.app.*
 import android.content.Intent
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import ai.picovoice.porcupine.PorcupineManager
-import ai.picovoice.porcupine.PorcupineManagerCallback
-import com.naruto.jarvis.BuildConfig
+import org.json.JSONObject
+import org.vosk.Model
+import org.vosk.Recognizer
+import org.vosk.android.RecognitionListener
+import org.vosk.android.SpeechService
+import org.vosk.android.StorageService
 
 /**
  * WakeWordService
  * ---------------------------------------------------------------
- * Runs as a foreground service so Android doesn't kill it. Hosts
- * Porcupine — a small on-device wake-word engine (NOT cloud STT,
- * so it's cheap on battery/data and can run 24/7 in SLEEP state).
+ * Runs as a foreground service, continuously listening for "Jarvis
+ * are you there" / "Jarvis go sleep" using Vosk — a free, fully
+ * offline speech engine. No account, no API key, no internet
+ * connection required once the model is bundled in the app.
  *
- * You define two custom wake phrases in the free Picovoice Console
- * (console.picovoice.ai):
- *   - "Jarvis are you there"  -> jarvis_wake.ppn
- *   - "Jarvis go sleep"       -> jarvis_sleep.ppn
- * Drop the resulting .ppn files into app/src/main/assets/.
- *
- * NOTE: In the hybrid app, command ROUTING (what "open X" or "what's
- * the weather" should do) lives in the existing JS (handleCommand in
- * app.js) — this service's job ends at "capture audio and hand text
- * over" via VoiceCommandPipeline. MainActivity relays that text into
- * the WebView so the same JS logic you already built handles it,
- * exactly like a tap-to-talk transcript would.
+ * REQUIRES: a Vosk model zip in app/src/main/assets/, named exactly
+ * "model-en-us.zip" (see setup notes — download from
+ * alphacephei.com/vosk/models, no sign-up needed, direct download).
+ * Vosk unpacks it to internal storage the first time the app runs.
  */
 class WakeWordService : Service() {
 
-    private var porcupineManager: PorcupineManager? = null
+    private var model: Model? = null
+    private var speechService: SpeechService? = null
 
     override fun onCreate() {
         super.onCreate()
         startForeground(NOTIF_ID, buildNotification())
-        startWakeWordListening()
+        loadModelAndStart()
     }
 
-    private fun startWakeWordListening() {
-        val callback = PorcupineManagerCallback { keywordIndex ->
-            when (keywordIndex) {
-                0 -> { // "Jarvis are you there"
-                    if (JarvisStateManager.currentState == JarvisState.SLEEP) {
-                        JarvisStateManager.wake()
-                        TtsEngine.onDone = {
-                            TtsEngine.onDone = null
-                            // Hands-free: no tap to signal "done speaking", so
-                            // auto-capture the user's next sentence for 6s.
-                            VoiceCommandPipeline.startAutoCapture(applicationContext, 6000)
-                        }
-                        TtsEngine.speak("I am online and ready, sir.")
+    private fun loadModelAndStart() {
+        StorageService.unpack(
+            this, "model-en-us", "model",
+            { unpackedModel ->
+                model = unpackedModel
+                startListening()
+            },
+            { exception ->
+                // Model missing/corrupt — nothing we can recover from here;
+                // the notification stays up but listening won't start.
+            }
+        )
+    }
+
+    private fun startListening() {
+        val m = model ?: return
+        val recognizer = Recognizer(m, 16000.0f)
+        speechService = SpeechService(recognizer, 16000.0f)
+        speechService?.startListening(object : RecognitionListener {
+
+            override fun onPartialResult(hypothesis: String?) {}
+
+            override fun onResult(hypothesis: String?) {
+                handleHeardText(extractText(hypothesis))
+            }
+
+            override fun onFinalResult(hypothesis: String?) {
+                handleHeardText(extractText(hypothesis))
+            }
+
+            override fun onError(exception: Exception?) {
+                // Restart listening on error rather than dying silently.
+                speechService?.stop()
+                startListening()
+            }
+
+            override fun onTimeout() {
+                startListening()
+            }
+        })
+    }
+
+    private fun extractText(hypothesisJson: String?): String {
+        if (hypothesisJson.isNullOrBlank()) return ""
+        return try {
+            JSONObject(hypothesisJson).optString("text", "").lowercase()
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    private fun handleHeardText(heard: String) {
+        if (heard.isBlank()) return
+        when {
+            heard.contains("are you there") -> {
+                if (JarvisStateManager.currentState == JarvisState.SLEEP) {
+                    JarvisStateManager.wake()
+                    TtsEngine.onDone = {
+                        TtsEngine.onDone = null
+                        VoiceCommandPipeline.startAutoCapture(applicationContext, 6000)
                     }
-                }
-                1 -> { // "Jarvis go sleep" — works even mid-conversation, independent of cloud STT
-                    JarvisStateManager.sleep()
-                    TtsEngine.speak("Going into standby mode.")
+                    TtsEngine.speak("I am online and ready, sir.")
                 }
             }
+            heard.contains("go sleep") || heard.contains("go to sleep") -> {
+                JarvisStateManager.sleep()
+                TtsEngine.speak("Going into standby mode.")
+            }
         }
-
-        porcupineManager = PorcupineManager.Builder()
-            .setAccessKey(BuildConfig.PICOVOICE_ACCESS_KEY) // free tier key from Picovoice Console, via build.gradle.kts
-            .setKeywordPaths(arrayOf("jarvis_wake.ppn", "jarvis_sleep.ppn"))
-            .setSensitivities(floatArrayOf(0.6f, 0.6f))
-            .build(applicationContext, callback)
-
-        porcupineManager?.start()
     }
 
     private fun buildNotification(): Notification {
@@ -84,8 +121,9 @@ class WakeWordService : Service() {
     }
 
     override fun onDestroy() {
-        porcupineManager?.stop()
-        porcupineManager?.delete()
+        speechService?.stop()
+        speechService?.shutdown()
+        model?.close()
         super.onDestroy()
     }
 
