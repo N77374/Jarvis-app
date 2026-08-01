@@ -3,11 +3,10 @@
    Honest limits (see chat): no cross-app control, no in-app editing —
    those need Stage 3 (native app + AccessibilityService).
 
-   Voice input: wake-word detection still uses the browser's built-in speech
-   recognition (just listening for the single word "jarvis" in English, which
-   it handles fine). Actual commands are recorded as audio and transcribed via
-   Whisper (through the worker's /transcribe endpoint) for much better
-   Gujarati/Gujlish accuracy than the browser's built-in recognizer offers.
+   Voice input: wake-word detection uses the browser's built-in speech
+   recognition (just listening for the word "jarvis"). Actual commands are
+   recorded as audio and transcribed via Whisper (through the worker's
+   /transcribe endpoint) for accurate English transcription.
 */
 
 const $ = (id) => document.getElementById(id);
@@ -17,15 +16,14 @@ const clock = $('clock');
 
 let settings = JSON.parse(localStorage.getItem('jarvisSettings') || '{}');
 let wakeEnabled = settings.wakeEnabled || false;
-let voiceLang = settings.voiceLang || 'gu-IN';
+const voiceLang = 'en-US';
 let recognition = null;
 let mode = 'idle'; // idle | wake-listening | recording | processing | speaking
 let mediaRecorder = null;
 let recordedChunks = [];
 let autoStopTimer = null;
 
-const LANG_NAMES = { 'gu-IN': 'Gujarati', 'en-US': 'English' };
-const WHISPER_LANG = { 'gu-IN': 'gu', 'en-US': 'en' };
+const WHISPER_LANG_CODE = 'en';
 
 // ---------- utility ----------
 
@@ -54,20 +52,6 @@ function pickVoice(voices) {
 }
 
 let voiceWarningShown = false;
-function checkVoiceAvailability() {
-  if (voiceWarningShown) return;
-  const voices = speechSynthesis.getVoices();
-  if (!voices.length) return; // not loaded yet
-  voiceWarningShown = true;
-  const match = pickVoice(voices);
-  if (!match && voiceLang === 'gu-IN') {
-    addEntry('sys', 'No Gujarati voice found on this phone — replies will sound in a fallback English accent until you install one (Phone Settings → Languages & input → Text-to-speech output → Install voice data → Gujarati).');
-  }
-}
-if ('speechSynthesis' in window) {
-  speechSynthesis.onvoiceschanged = checkVoiceAvailability;
-  checkVoiceAvailability();
-}
 
 function speak(text) {
   addEntry('jarvis', text);
@@ -175,7 +159,7 @@ async function transcribeAndHandle(blob) {
   try {
     const form = new FormData();
     form.append('audio', blob, 'audio.webm');
-    form.append('lang', WHISPER_LANG[voiceLang] || 'gu');
+    form.append('lang', WHISPER_LANG_CODE);
 
     const url = settings.proxyUrl.replace(/\/$/, '') + '/transcribe';
     const r = await fetch(url, { method: 'POST', body: form });
@@ -309,44 +293,29 @@ function openApp(name) {
 // ---------- settings drawer ----------
 
 const drawer = $('drawer');
-const langBtns = { 'gu-IN': $('langGuBtn'), 'en-US': $('langEnBtn') };
-
-function highlightLangBtn() {
-  Object.entries(langBtns).forEach(([code, btn]) => {
-    btn.classList.toggle('primary', code === voiceLang);
-  });
-}
 
 $('settingsBtn').onclick = () => {
   $('cityInput').value = settings.city || '';
   $('proxyInput').value = settings.proxyUrl || '';
-  highlightLangBtn();
   drawer.classList.add('open');
 };
 $('closeSettingsBtn').onclick = () => drawer.classList.remove('open');
 $('wakeOnBtn').onclick = () => { wakeEnabled = true; };
 $('wakeOffBtn').onclick = () => { wakeEnabled = false; };
 
-Object.entries(langBtns).forEach(([code, btn]) => {
-  btn.onclick = () => { voiceLang = code; highlightLangBtn(); };
-});
-
 $('saveSettingsBtn').onclick = () => {
   settings.city = $('cityInput').value.trim();
   settings.proxyUrl = $('proxyInput').value.trim();
   settings.wakeEnabled = wakeEnabled;
-  settings.voiceLang = voiceLang;
   localStorage.setItem('jarvisSettings', JSON.stringify(settings));
   drawer.classList.remove('open');
-  wakeHint.textContent = 'Wake-word listening: ' + (wakeEnabled ? 'ON' : 'OFF — enable in settings') +
-    ' · Voice: ' + (LANG_NAMES[voiceLang] || voiceLang);
+  wakeHint.textContent = 'Wake-word listening: ' + (wakeEnabled ? 'ON' : 'OFF — enable in settings');
   if (wakeEnabled) startWakeListening();
   else setState('idle', 'Standby');
 };
 
 // ---------- init ----------
-wakeHint.textContent = 'Wake-word listening: ' + (settings.wakeEnabled ? 'ON' : 'OFF — enable in settings') +
-  ' · Voice: ' + (LANG_NAMES[voiceLang] || voiceLang);
+wakeHint.textContent = 'Wake-word listening: ' + (settings.wakeEnabled ? 'ON' : 'OFF — enable in settings');
 if (settings.wakeEnabled) {
   wakeEnabled = true;
   startWakeListening();
@@ -355,4 +324,4 @@ if (settings.wakeEnabled) {
 // register service worker for installability (PWA -> Stage 2 wrap later)
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
-}
+   }
