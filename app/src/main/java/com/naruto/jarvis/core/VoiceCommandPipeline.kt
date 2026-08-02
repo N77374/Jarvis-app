@@ -30,6 +30,9 @@ object VoiceCommandPipeline {
         listeners.remove(l)
     }
 
+    /** Current mic level of whatever's actively recording, for silence detection. */
+    fun currentAmplitude(): Int = recorder?.currentAmplitude() ?: 0
+
     /** Tap-to-talk: start now, caller stops later with stopManual(). */
     fun startManual(context: Context): Boolean {
         val rec = AudioRecorderClient(context)
