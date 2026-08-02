@@ -44,7 +44,7 @@ window.onNativeStateChange = (state) => {
 
 window.onNativeTranscript = (text) => {
   addEntry('user', text);
-  handleCommand(text.toLowerCase());
+  handleCommand(stripWakeWord(text.toLowerCase()));
 };
 
 window.onNativeNoSpeech = () => speak("Didn't catch that.");
@@ -64,6 +64,10 @@ function addEntry(who, text) {
   el.querySelector('.msg').textContent = text;
   log.appendChild(el);
   log.scrollTop = log.scrollHeight;
+}
+
+function stripWakeWord(text) {
+  return text.replace(/^\s*(hey\s+)?jarvis[,:]?\s*/i, '').trim();
 }
 
 function pickVoice(voices) {
@@ -197,7 +201,7 @@ async function transcribeAndHandle(blob) {
 
     if (!text) { speak("Didn't catch that."); return; }
     addEntry('user', text);
-    handleCommand(text.toLowerCase());
+    handleCommand(stripWakeWord(text.toLowerCase()));
   } catch (err) {
     speak("Couldn't reach the transcription service.");
   }
@@ -392,4 +396,4 @@ if (settings.wakeEnabled) {
 // register service worker for installability (standalone website only)
 if ('serviceWorker' in navigator && !window.AndroidBridge) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
-}
+   }
