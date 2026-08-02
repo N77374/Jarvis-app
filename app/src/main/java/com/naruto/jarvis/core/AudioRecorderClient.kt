@@ -51,4 +51,11 @@ class AudioRecorderClient(private val context: Context) {
             null
         }
     }
+
+    /** Current mic input level (0 = silence, higher = louder) — used to auto-detect when the user has stopped talking. */
+    fun currentAmplitude(): Int = try {
+        recorder?.maxAmplitude ?: 0
+    } catch (e: Exception) {
+        0
+    }
 }
