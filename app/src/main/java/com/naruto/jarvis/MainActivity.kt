@@ -5,10 +5,13 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import com.naruto.jarvis.accessibility.GridOverlayHolder
 import com.naruto.jarvis.accessibility.JarvisAccessibilityService
 import com.naruto.jarvis.core.*
 
@@ -16,18 +19,19 @@ class MainActivity : ComponentActivity(), JarvisStateListener, VoiceCommandPipel
 
     private lateinit var webView: WebView
 
+    // ---------- silence-based auto-stop ----------
+    private var silenceHandler: Handler? = null
+    private var hasSpokenThisTurn = false
+    private var silentMsAccum = 0
+    private var totalMsAccum = 0
+    private val POLL_MS = 200
+    private val SPEECH_THRESHOLD = 2500     // mic amplitude above this counts as "talking"
+    private val SILENCE_DURATION_MS = 1200  // how long of silence (after speech) before auto-stopping
+    private val MAX_RECORD_MS = 15000       // hard cap regardless of silence detection
+
     private val requestPermissions = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { /* mic just won't work until granted — no special handling needed */ }
-
-    // Names you actually use -> real package IDs. Extend as needed.
-    private val appPackages = mapOf(
-        "whatsapp" to "com.whatsapp",
-        "youtube" to "com.google.android.youtube",
-        "maps" to "com.google.android.apps.maps",
-        "gmail" to "com.google.android.gm",
-        "camera" to "com.android.camera"
-    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,7 +42,7 @@ class MainActivity : ComponentActivity(), JarvisStateListener, VoiceCommandPipel
 
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true // required for the app's existing localStorage settings
+            settings.domStorageEnabled = true
             addJavascriptInterface(JarvisJsBridge(this@MainActivity), "AndroidBridge")
             loadUrl("file:///android_asset/www/index.html")
         }
@@ -55,18 +59,23 @@ class MainActivity : ComponentActivity(), JarvisStateListener, VoiceCommandPipel
         requestPermissions.launch(perms.toTypedArray())
     }
 
-    // ---------- called by JarvisJsBridge (always already on UI thread here) ----------
+    // ---------- called by JarvisJsBridge ----------
 
     fun setWakeServiceEnabled(enabled: Boolean) {
         val intent = Intent(this, WakeWordService::class.java)
         if (enabled) startForegroundService(intent) else stopService(intent)
     }
 
-    /** Returns true immediately if recording actually started (mic access ok). */
-    fun startNativeRecording(): Boolean = VoiceCommandPipeline.startManual(this)
+    /** Starts recording AND begins watching for silence to auto-stop it. */
+    fun startNativeRecording(): Boolean {
+        val started = VoiceCommandPipeline.startManual(this)
+        if (started) startSilenceWatch()
+        return started
+    }
 
+    /** Manual stop (user tapped Stop) — routes through the same path as auto-stop. */
     fun stopNativeRecording() {
-        VoiceCommandPipeline.stopManual()
+        finishRecording()
     }
 
     fun speakNative(text: String) {
@@ -77,14 +86,13 @@ class MainActivity : ComponentActivity(), JarvisStateListener, VoiceCommandPipel
         TtsEngine.speak(text)
     }
 
+    /** Uses AppRegistry to find any installed app by spoken name — no pre-registration needed. */
     fun launchAppByName(name: String): Boolean {
-        val pkg = appPackages[name.lowercase()] ?: return false
+        val pkg = AppRegistry.findPackage(this, name) ?: return false
         val service = JarvisAccessibilityService.instance
         return if (service != null) {
             service.launchApp(pkg)
         } else {
-            // Accessibility not enabled yet — fall back to a plain launcher intent,
-            // which doesn't need the accessibility permission at all.
             val launchIntent = packageManager.getLaunchIntentForPackage(pkg) ?: return false
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(launchIntent)
@@ -102,14 +110,61 @@ class MainActivity : ComponentActivity(), JarvisStateListener, VoiceCommandPipel
 
     fun showElementGrid() {
         val service = JarvisAccessibilityService.instance ?: return
-        com.naruto.jarvis.accessibility.GridOverlayHolder.instance(this).show(service)
+        GridOverlayHolder.instance(this).show(service)
     }
 
     fun hideElementGrid() {
-        com.naruto.jarvis.accessibility.GridOverlayHolder.instance(this).hide()
+        GridOverlayHolder.instance(this).hide()
     }
 
-    // ---------- JarvisStateListener: relay state changes into the web UI ----------
+    // ---------- silence-watch implementation ----------
+
+    private fun startSilenceWatch() {
+        hasSpokenThisTurn = false
+        silentMsAccum = 0
+        totalMsAccum = 0
+        silenceHandler = Handler(Looper.getMainLooper())
+
+        val runnable = object : Runnable {
+            override fun run() {
+                val amp = VoiceCommandPipeline.currentAmplitude()
+                totalMsAccum += POLL_MS
+
+                if (amp > SPEECH_THRESHOLD) {
+                    hasSpokenThisTurn = true
+                    silentMsAccum = 0
+                } else if (hasSpokenThisTurn) {
+                    silentMsAccum += POLL_MS
+                }
+
+                val shouldStop = (hasSpokenThisTurn && silentMsAccum >= SILENCE_DURATION_MS) ||
+                        totalMsAccum >= MAX_RECORD_MS
+
+                if (shouldStop) {
+                    finishRecording()
+                } else {
+                    silenceHandler?.postDelayed(this, POLL_MS.toLong())
+                }
+            }
+        }
+        silenceHandler?.postDelayed(runnable, POLL_MS.toLong())
+    }
+
+    private fun stopSilenceWatch() {
+        silenceHandler?.removeCallbacksAndMessages(null)
+        silenceHandler = null
+    }
+
+    /** Single path for both manual-tap-stop and auto-stop-on-silence. */
+    private fun finishRecording() {
+        stopSilenceWatch()
+        runOnUiThread {
+            webView.evaluateJavascript("window.onNativeRecordingStopped && window.onNativeRecordingStopped();", null)
+        }
+        VoiceCommandPipeline.stopManual()
+    }
+
+    // ---------- JarvisStateListener ----------
 
     override fun onStateChanged(newState: JarvisState) {
         runOnUiThread {
@@ -120,11 +175,11 @@ class MainActivity : ComponentActivity(), JarvisStateListener, VoiceCommandPipel
         }
     }
 
-    // ---------- VoiceCommandPipeline.Listener: relay transcripts into the web UI ----------
+    // ---------- VoiceCommandPipeline.Listener ----------
 
     override fun onTranscript(text: String) {
         runOnUiThread {
-            val escaped = org.json.JSONObject.quote(text) // safe JS string literal
+            val escaped = org.json.JSONObject.quote(text)
             webView.evaluateJavascript(
                 "window.onNativeTranscript && window.onNativeTranscript($escaped);", null
             )
@@ -140,6 +195,7 @@ class MainActivity : ComponentActivity(), JarvisStateListener, VoiceCommandPipel
     }
 
     override fun onDestroy() {
+        stopSilenceWatch()
         TtsEngine.shutdown()
         super.onDestroy()
     }
