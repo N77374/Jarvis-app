@@ -1,14 +1,12 @@
-/* Jarvis Web — Hybrid build
-   Same UI/logic as the standalone website, with native bridge hooks
-   added so it works inside the Android app too. Every AndroidBridge
-   check has a browser fallback, so this file still works fine as a
-   plain website if opened outside the app.
+/* Jarvis Web — Hybrid build, chat UI
+   Same command routing / native bridge logic as before, adapted to a
+   chat-bubble interface with a floating text+mic+send input bar.
 */
 
 const $ = (id) => document.getElementById(id);
-const dial = $('dial'), statusText = $('statusText'), subLabel = $('subLabel');
-const log = $('log'), micBtn = $('micBtn'), wakeHint = $('wakeHint');
-const clock = $('clock');
+const dial = $('dial'), statusText = $('statusText');
+const log = $('log'), micBtn = $('micBtn'), sendBtn = $('sendBtn'), textInput = $('textInput');
+const inputBar = $('inputBar'), clock = $('clock');
 
 let settings = JSON.parse(localStorage.getItem('jarvisSettings') || '{}');
 
@@ -38,16 +36,23 @@ const WHISPER_LANG_CODE = 'en';
 window.onNativeSpeechDone = () => afterSpeak();
 
 window.onNativeStateChange = (state) => {
-  if (state === 'ACTIVE') setState('idle', 'Ready — tap mic or speak');
+  if (state === 'ACTIVE') setState('idle', 'Ready');
   else setState('idle', 'Standby');
 };
 
 window.onNativeTranscript = (text) => {
-  addEntry('user', text);
+  addBubble('user', text);
   handleCommand(stripWakeWord(text.toLowerCase()));
 };
 
 window.onNativeNoSpeech = () => speak("Didn't catch that.");
+
+// Native auto-stops recording (silence detection) — reset the mic icon/UI here.
+window.onNativeRecordingStopped = () => {
+  micBtn.classList.remove('recording');
+  micBtn.textContent = '🎤';
+  setState('processing', 'Transcribing');
+};
 
 // ---------- utility ----------
 
@@ -57,12 +62,14 @@ function setState(next, label) {
   statusText.textContent = label || next.replace('-', ' ');
 }
 
-function addEntry(who, text) {
-  const el = document.createElement('div');
-  el.className = 'entry ' + who;
-  el.innerHTML = `<div class="tag">${who === 'user' ? 'YOU' : who === 'jarvis' ? 'JARVIS' : 'SYS'}</div><div class="msg"></div>`;
-  el.querySelector('.msg').textContent = text;
-  log.appendChild(el);
+function addBubble(who, text) {
+  const row = document.createElement('div');
+  row.className = 'row ' + who;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
+  row.appendChild(bubble);
+  log.appendChild(row);
   log.scrollTop = log.scrollHeight;
 }
 
@@ -78,9 +85,8 @@ function pickVoice(voices) {
   return male || langMatches[0];
 }
 
-// PATCH 1: speak() prefers the native bridge when running inside the app.
 function speak(text) {
-  addEntry('jarvis', text);
+  addBubble('jarvis', text);
   setState('speaking', 'Speaking');
 
   if (window.AndroidBridge) {
@@ -120,9 +126,8 @@ const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 function startWakeListening() {
   if (window.AndroidBridge) return; // native WakeWordService handles this in-app
-  if (!SpeechRec) { subLabel.textContent = 'speech recognition unsupported'; return; }
+  if (!SpeechRec) return;
   setState('wake-listening', 'Listening for wake word');
-  subLabel.textContent = 'say "hey jarvis"';
   recognition = new SpeechRec();
   recognition.continuous = false;
   recognition.interimResults = false;
@@ -170,8 +175,7 @@ async function startRecording(autoStopMs) {
       transcribeAndHandle(blob);
     };
     mediaRecorder.start();
-    setState('recording', autoStopMs ? 'Listening' : 'Recording — tap to stop');
-    subLabel.textContent = autoStopMs ? 'go ahead' : 'tap the mic again to stop';
+    setState('recording', autoStopMs ? 'Listening' : 'Recording…');
 
     if (autoStopMs) {
       autoStopTimer = setTimeout(() => stopRecording(), autoStopMs);
@@ -200,33 +204,81 @@ async function transcribeAndHandle(blob) {
     const text = (data.text || '').trim();
 
     if (!text) { speak("Didn't catch that."); return; }
-    addEntry('user', text);
+    addBubble('user', text);
     handleCommand(stripWakeWord(text.toLowerCase()));
   } catch (err) {
     speak("Couldn't reach the transcription service.");
   }
 }
 
-// PATCH 3: mic button prefers native recording when running inside the app.
+// ---------- mic button: tap to start, tap again to stop (auto-stop on silence too) ----------
+
 micBtn.addEventListener('click', () => {
   if (window.AndroidBridge) {
     if (mode === 'recording') {
       window.AndroidBridge.stopRecording();
+      micBtn.classList.remove('recording');
+      micBtn.textContent = '🎤';
       setState('processing', 'Transcribing');
     } else {
-      const started = window.AndroidBridge.startRecording();
-      if (started) setState('recording', 'Recording — tap to stop');
+      const started = window.AndroidBridge.startRecording(); // native watches for silence and auto-stops
+      if (started) {
+        micBtn.classList.add('recording');
+        micBtn.textContent = '⏹';
+        setState('recording', 'Listening…');
+      }
     }
     return;
   }
 
-  // Browser fallback (standalone website)
+  // Browser fallback (standalone website) — manual tap-to-stop only.
   if (mode === 'recording') {
     stopRecording();
+    micBtn.classList.remove('recording');
+    micBtn.textContent = '🎤';
   } else {
     startRecording(null);
+    micBtn.classList.add('recording');
+    micBtn.textContent = '⏹';
   }
 });
+
+// ---------- text chat: type + send, same command routing as voice ----------
+
+function sendTypedMessage() {
+  const text = textInput.value.trim();
+  if (!text) return;
+  addBubble('user', text);
+  textInput.value = '';
+  textInput.style.height = 'auto';
+  handleCommand(stripWakeWord(text.toLowerCase()));
+}
+
+sendBtn.addEventListener('click', sendTypedMessage);
+textInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendTypedMessage();
+  }
+});
+// Auto-grow the textarea as the user types (up to the CSS max-height).
+textInput.addEventListener('input', () => {
+  textInput.style.height = 'auto';
+  textInput.style.height = textInput.scrollHeight + 'px';
+});
+
+// ---------- keep the input bar floating just above the on-screen keyboard ----------
+
+function adjustInputBarForKeyboard() {
+  if (!window.visualViewport) return;
+  const offset = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
+  inputBar.style.transform = offset > 0 ? `translateY(-${offset}px)` : '';
+  log.scrollTop = log.scrollHeight;
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', adjustInputBarForKeyboard);
+  window.visualViewport.addEventListener('scroll', adjustInputBarForKeyboard);
+}
 
 // ---------- command routing ----------
 
@@ -260,19 +312,17 @@ async function handleCommand(text) {
     return;
   }
 
-  // PATCH 4: "open X" prefers native app launching when running inside the app.
   if (text.startsWith('open ')) {
     const app = text.replace('open ', '').trim();
     if (window.AndroidBridge) {
       const ok = window.AndroidBridge.openApp(app);
-      speak(ok ? `Opening ${app}.` : `I don't have ${app} registered yet.`);
+      speak(ok ? `Opening ${app}.` : `Couldn't find ${app} installed.`);
     } else {
       openApp(app);
     }
     return;
   }
 
-  // PATCH 4 (new): "tap X" / "click X" — device control, only available inside the app.
   if ((text.startsWith('tap ') || text.startsWith('click ')) && window.AndroidBridge) {
     const label = text.replace(/^tap |^click /, '').trim();
     const ok = window.AndroidBridge.tapElement(label);
@@ -336,8 +386,6 @@ async function weatherReply() {
 }
 
 function openApp(name) {
-  // Browser-only fallback: limited Android intent deep links.
-  // Inside the native app, window.AndroidBridge.openApp() is used instead (see handleCommand).
   const map = {
     whatsapp: 'intent://send#Intent;scheme=whatsapp;package=com.whatsapp;end',
     youtube: 'intent://#Intent;package=com.google.android.youtube;end',
@@ -356,6 +404,7 @@ function openApp(name) {
 // ---------- settings drawer ----------
 
 const drawer = $('drawer');
+const wakeHint = $('wakeHint');
 
 $('settingsBtn').onclick = () => {
   $('cityInput').value = settings.city || '';
@@ -364,7 +413,6 @@ $('settingsBtn').onclick = () => {
 };
 $('closeSettingsBtn').onclick = () => drawer.classList.remove('open');
 
-// PATCH 5: wake toggle also calls the native bridge when running inside the app.
 $('wakeOnBtn').onclick = () => {
   wakeEnabled = true;
   if (window.AndroidBridge) window.AndroidBridge.toggleWake(true);
@@ -374,19 +422,30 @@ $('wakeOffBtn').onclick = () => {
   if (window.AndroidBridge) window.AndroidBridge.toggleWake(false);
 };
 
+if ($('accessibilityBtn')) {
+  $('accessibilityBtn').onclick = () => {
+    if (window.AndroidBridge) window.AndroidBridge.openAccessibilitySettings();
+  };
+}
+if ($('overlayBtn')) {
+  $('overlayBtn').onclick = () => {
+    if (window.AndroidBridge) window.AndroidBridge.openOverlaySettings();
+  };
+}
+
 $('saveSettingsBtn').onclick = () => {
   settings.city = $('cityInput').value.trim();
   settings.proxyUrl = $('proxyInput').value.trim();
   settings.wakeEnabled = wakeEnabled;
   localStorage.setItem('jarvisSettings', JSON.stringify(settings));
   drawer.classList.remove('open');
-  wakeHint.textContent = 'Wake-word listening: ' + (wakeEnabled ? 'ON' : 'OFF — enable in settings');
+  wakeHint.textContent = 'Wake-word listening: ' + (wakeEnabled ? 'ON' : 'OFF — enable here');
   if (wakeEnabled && !window.AndroidBridge) startWakeListening();
   else if (!wakeEnabled) setState('idle', 'Standby');
 };
 
 // ---------- init ----------
-wakeHint.textContent = 'Wake-word listening: ' + (settings.wakeEnabled ? 'ON' : 'OFF — enable in settings');
+wakeHint.textContent = 'Wake-word listening: ' + (settings.wakeEnabled ? 'ON' : 'OFF — enable here');
 if (settings.wakeEnabled) {
   wakeEnabled = true;
   if (window.AndroidBridge) window.AndroidBridge.toggleWake(true);
@@ -396,4 +455,4 @@ if (settings.wakeEnabled) {
 // register service worker for installability (standalone website only)
 if ('serviceWorker' in navigator && !window.AndroidBridge) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
-   }
+                                   }
