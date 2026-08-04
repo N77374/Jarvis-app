@@ -48,6 +48,88 @@ object NativeCommandRouter {
                 TtsEngine.speak(now)
             }
 
+            text.contains("flashlight") || text.contains("torch") -> {
+                val on = !(text.contains("off") || text.contains("turn off"))
+                val ok = SystemControlManager.setFlashlight(context, on)
+                TtsEngine.speak(if (ok) "Done." else "Couldn't control the flashlight.")
+            }
+
+            text.contains("volume up") || text.contains("increase volume") -> {
+                SystemControlManager.adjustVolume(context, true)
+                TtsEngine.speak("Done.")
+            }
+
+            text.contains("volume down") || text.contains("decrease volume") || text.contains("lower volume") -> {
+                SystemControlManager.adjustVolume(context, false)
+                TtsEngine.speak("Done.")
+            }
+
+            text.contains("mute") -> {
+                SystemControlManager.setMuted(context, true)
+                TtsEngine.speak("Muted.")
+            }
+
+            text.contains("unmute") -> {
+                SystemControlManager.setMuted(context, false)
+                TtsEngine.speak("Unmuted.")
+            }
+
+            text.contains("set volume to") -> {
+                val pct = Regex("\\d+").find(text)?.value?.toIntOrNull()
+                if (pct != null) {
+                    val ok = SystemControlManager.setVolumePercent(context, pct)
+                    TtsEngine.speak(if (ok) "Volume set to $pct percent." else "Couldn't set volume.")
+                } else {
+                    TtsEngine.speak("Tell me a percentage, like 'set volume to 50'.")
+                }
+            }
+
+            text.contains("brightness") -> {
+                val pct = Regex("\\d+").find(text)?.value?.toIntOrNull()
+                if (!SystemControlManager.canWriteSettings(context)) {
+                    TtsEngine.speak("I need the 'Modify system settings' permission first — check Jarvis settings.")
+                } else if (pct != null) {
+                    val ok = SystemControlManager.setBrightnessPercent(context, pct)
+                    TtsEngine.speak(if (ok) "Brightness set to $pct percent." else "Couldn't set brightness.")
+                } else {
+                    TtsEngine.speak("Tell me a percentage, like 'set brightness to 70'.")
+                }
+            }
+
+            text.contains("bluetooth") -> {
+                val on = !(text.contains("off") || text.contains("turn off"))
+                val ok = SystemControlManager.setBluetooth(on)
+                TtsEngine.speak(if (ok) "Done." else "Couldn't control Bluetooth on this phone.")
+            }
+
+            text.contains("do not disturb") || text.contains("dnd") -> {
+                val on = !(text.contains("off") || text.contains("turn off"))
+                if (!SystemControlManager.canAccessNotificationPolicy(context)) {
+                    TtsEngine.speak("I need Do Not Disturb access first — check Jarvis settings.")
+                } else {
+                    val ok = SystemControlManager.setDoNotDisturb(context, on)
+                    TtsEngine.speak(if (ok) "Done." else "Couldn't change Do Not Disturb.")
+                }
+            }
+
+            text.contains("wifi") || text.contains("wi-fi") -> {
+                // Android blocks silent Wi-Fi toggling since Android 10 — opening the
+                // quick panel is the honest, actually-possible version of this.
+                SystemControlManager.openWifiPanel(context)
+                TtsEngine.speak("Here's the Wi-Fi panel — one tap to switch it.")
+            }
+
+            text.startsWith("close ") -> {
+                val service = JarvisAccessibilityService.instance
+                if (service == null) {
+                    TtsEngine.speak("Accessibility isn't enabled, so I can't close apps yet.")
+                } else {
+                    narrate("Closing…")
+                    service.closeCurrentApp()
+                    TtsEngine.speak("Done.")
+                }
+            }
+
             text.startsWith("open ") -> {
                 val appName = text.removePrefix("open ").trim()
                 narrate("Opening $appName…")
