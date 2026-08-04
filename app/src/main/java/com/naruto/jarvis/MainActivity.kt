@@ -66,6 +66,15 @@ class MainActivity : ComponentActivity(), JarvisStateListener, VoiceCommandPipel
         if (enabled) startForegroundService(intent) else stopService(intent)
     }
 
+    fun setFloatingBubbleEnabled(enabled: Boolean) {
+        val intent = Intent(this, FloatingBubbleService::class.java)
+        if (enabled) startForegroundService(intent) else stopService(intent)
+    }
+
+    fun saveCityForNativeUse(city: String) {
+        getSharedPreferences("jarvis_prefs", MODE_PRIVATE).edit().putString("city", city).apply()
+    }
+
     /** Starts recording AND begins watching for silence to auto-stop it. */
     fun startNativeRecording(): Boolean {
         val started = VoiceCommandPipeline.startManual(this)
