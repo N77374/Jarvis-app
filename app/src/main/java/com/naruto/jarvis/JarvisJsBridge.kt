@@ -35,6 +35,11 @@ class JarvisJsBridge(private val activity: MainActivity) {
     }
 
     @JavascriptInterface
+    fun routeNative(text: String) {
+        activity.runOnUiThread { activity.routeThroughNativeRouter(text) }
+    }
+
+    @JavascriptInterface
     fun startRecording(): Boolean = activity.startNativeRecording()
 
     @JavascriptInterface
@@ -87,5 +92,15 @@ class JarvisJsBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun openOverlaySettings() {
         activity.runOnUiThread { activity.openOverlaySettings() }
+    }
+
+    @JavascriptInterface
+    fun openModifySettingsPermission() {
+        activity.runOnUiThread { com.naruto.jarvis.core.SystemControlManager.requestWriteSettingsPermission(activity) }
+    }
+
+    @JavascriptInterface
+    fun openDndPermission() {
+        activity.runOnUiThread { com.naruto.jarvis.core.SystemControlManager.requestNotificationPolicyAccess(activity) }
     }
 }
