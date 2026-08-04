@@ -25,6 +25,16 @@ class JarvisJsBridge(private val activity: MainActivity) {
     }
 
     @JavascriptInterface
+    fun toggleFloatingBubble(enabled: Boolean) {
+        activity.runOnUiThread { activity.setFloatingBubbleEnabled(enabled) }
+    }
+
+    @JavascriptInterface
+    fun setCity(city: String) {
+        activity.runOnUiThread { activity.saveCityForNativeUse(city) }
+    }
+
+    @JavascriptInterface
     fun startRecording(): Boolean = activity.startNativeRecording()
 
     @JavascriptInterface
