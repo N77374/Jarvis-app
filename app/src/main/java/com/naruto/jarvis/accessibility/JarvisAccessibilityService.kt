@@ -113,6 +113,21 @@ class JarvisAccessibilityService : AccessibilityService() {
         return true
     }
 
+    /**
+     * closeCurrentApp()
+     * HONEST LIMIT: there is no public Android API letting one app
+     * force-kill another — Android intentionally blocks this for
+     * security (otherwise any app could kill any other app). This
+     * sends the system Home action instead, which backs fully out of
+     * whatever's currently open — the practical equivalent of
+     * "close it" from the user's point of view, even though the
+     * app's process may still exist backgrounded until Android
+     * reclaims that memory on its own.
+     */
+    fun closeCurrentApp(): Boolean {
+        return performGlobalAction(GLOBAL_ACTION_HOME)
+    }
+
     /** Grid Fallback ("Tap 4") --------------------------------------------- */
 
     /**
