@@ -56,6 +56,9 @@ class MainActivity : ComponentActivity(), JarvisStateListener, VoiceCommandPipel
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             perms.add(Manifest.permission.POST_NOTIFICATIONS)
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            perms.add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
         requestPermissions.launch(perms.toTypedArray())
     }
 
@@ -73,6 +76,15 @@ class MainActivity : ComponentActivity(), JarvisStateListener, VoiceCommandPipel
 
     fun saveCityForNativeUse(city: String) {
         getSharedPreferences("jarvis_prefs", MODE_PRIVATE).edit().putString("city", city).apply()
+    }
+
+    fun routeThroughNativeRouter(text: String) {
+        NativeCommandRouter.route(this, text) { narration ->
+            runOnUiThread {
+                val escaped = org.json.JSONObject.quote(narration)
+                webView.evaluateJavascript("window.onNativeNarration && window.onNativeNarration($escaped);", null)
+            }
+        }
     }
 
     /** Starts recording AND begins watching for silence to auto-stop it. */
