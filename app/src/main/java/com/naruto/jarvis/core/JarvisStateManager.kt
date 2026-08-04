@@ -28,6 +28,10 @@ object JarvisStateManager {
         listeners.add(listener)
     }
 
+    fun removeListener(listener: JarvisStateListener) {
+        listeners.remove(listener)
+    }
+
     /**
      * toggle_state() — the ONLY way state should change.
      * Called from:
