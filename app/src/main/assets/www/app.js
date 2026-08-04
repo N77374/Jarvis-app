@@ -432,12 +432,27 @@ if ($('overlayBtn')) {
     if (window.AndroidBridge) window.AndroidBridge.openOverlaySettings();
   };
 }
+if ($('bubbleOnBtn')) {
+  $('bubbleOnBtn').onclick = () => {
+    settings.bubbleEnabled = true;
+    if (window.AndroidBridge) window.AndroidBridge.toggleFloatingBubble(true);
+  };
+}
+if ($('bubbleOffBtn')) {
+  $('bubbleOffBtn').onclick = () => {
+    settings.bubbleEnabled = false;
+    if (window.AndroidBridge) window.AndroidBridge.toggleFloatingBubble(false);
+  };
+}
 
 $('saveSettingsBtn').onclick = () => {
   settings.city = $('cityInput').value.trim();
   settings.proxyUrl = $('proxyInput').value.trim();
   settings.wakeEnabled = wakeEnabled;
   localStorage.setItem('jarvisSettings', JSON.stringify(settings));
+  if (window.AndroidBridge && window.AndroidBridge.setCity) {
+    window.AndroidBridge.setCity(settings.city || 'Ahmedabad');
+  }
   drawer.classList.remove('open');
   wakeHint.textContent = 'Wake-word listening: ' + (wakeEnabled ? 'ON' : 'OFF — enable here');
   if (wakeEnabled && !window.AndroidBridge) startWakeListening();
@@ -446,13 +461,20 @@ $('saveSettingsBtn').onclick = () => {
 
 // ---------- init ----------
 wakeHint.textContent = 'Wake-word listening: ' + (settings.wakeEnabled ? 'ON' : 'OFF — enable here');
+if (window.AndroidBridge && window.AndroidBridge.setCity) {
+  window.AndroidBridge.setCity(settings.city || 'Ahmedabad');
+}
 if (settings.wakeEnabled) {
   wakeEnabled = true;
   if (window.AndroidBridge) window.AndroidBridge.toggleWake(true);
   else startWakeListening();
 }
+if (settings.bubbleEnabled && window.AndroidBridge) {
+  window.AndroidBridge.toggleFloatingBubble(true);
+}
 
 // register service worker for installability (standalone website only)
 if ('serviceWorker' in navigator && !window.AndroidBridge) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
-                                   }
+   }
+     
