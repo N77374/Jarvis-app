@@ -35,6 +35,11 @@
             android:exported="false" />
 
         <service
+            android:name=".core.FloatingBubbleService"
+            android:foregroundServiceType="microphone"
+            android:exported="false" />
+
+        <service
             android:name=".accessibility.JarvisAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             android:exported="false">
