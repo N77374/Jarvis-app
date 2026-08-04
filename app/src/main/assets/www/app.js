@@ -47,6 +47,8 @@ window.onNativeTranscript = (text) => {
 
 window.onNativeNoSpeech = () => speak("Didn't catch that.");
 
+window.onNativeNarration = (text) => addBubble('sys', text);
+
 // Native auto-stops recording (silence detection) — reset the mic icon/UI here.
 window.onNativeRecordingStopped = () => {
   micBtn.classList.remove('recording');
@@ -336,6 +338,12 @@ async function handleCommand(text) {
     return;
   }
 
+  const systemControlPattern = /flashlight|torch|volume|brightness|bluetooth|do not disturb|\bdnd\b|wifi|wi-fi/;
+  if (window.AndroidBridge && (systemControlPattern.test(text) || text.startsWith('close '))) {
+    window.AndroidBridge.routeNative(text);
+    return;
+  }
+
   // Free-form fallback -> AI backend
   if (settings.proxyUrl) {
     try {
@@ -430,6 +438,16 @@ if ($('accessibilityBtn')) {
 if ($('overlayBtn')) {
   $('overlayBtn').onclick = () => {
     if (window.AndroidBridge) window.AndroidBridge.openOverlaySettings();
+  };
+}
+if ($('modifySettingsBtn')) {
+  $('modifySettingsBtn').onclick = () => {
+    if (window.AndroidBridge) window.AndroidBridge.openModifySettingsPermission();
+  };
+}
+if ($('dndBtn')) {
+  $('dndBtn').onclick = () => {
+    if (window.AndroidBridge) window.AndroidBridge.openDndPermission();
   };
 }
 if ($('bubbleOnBtn')) {
