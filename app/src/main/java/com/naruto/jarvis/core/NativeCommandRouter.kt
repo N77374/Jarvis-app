@@ -130,6 +130,57 @@ object NativeCommandRouter {
                 }
             }
 
+            text.contains("scroll up") -> {
+                JarvisAccessibilityService.instance?.scroll(false)
+                TtsEngine.speak("Done.")
+            }
+            text.contains("scroll down") -> {
+                JarvisAccessibilityService.instance?.scroll(true)
+                TtsEngine.speak("Done.")
+            }
+            text.contains("screenshot") -> {
+                val ok = JarvisAccessibilityService.instance?.takeScreenshotAction() ?: false
+                TtsEngine.speak(if (ok) "Got it." else "Couldn't take a screenshot.")
+            }
+            text.contains("lock screen") || text.contains("lock the phone") || text.contains("lock my phone") -> {
+                val ok = JarvisAccessibilityService.instance?.lockScreen() ?: false
+                TtsEngine.speak(if (ok) "Locking up." else "Couldn't lock the screen.")
+            }
+            text.contains("go back") -> { JarvisAccessibilityService.instance?.goBack(); TtsEngine.speak("Done.") }
+            text.contains("go home") || text == "home" -> { JarvisAccessibilityService.instance?.goHome(); TtsEngine.speak("Done.") }
+            text.contains("recent apps") || text.contains("show recents") -> {
+                JarvisAccessibilityService.instance?.openRecents(); TtsEngine.speak("Here you go.")
+            }
+            text.contains("notifications") -> {
+                JarvisAccessibilityService.instance?.openNotifications(); TtsEngine.speak("Here you go.")
+            }
+            text.contains("quick settings") -> {
+                val ok = JarvisAccessibilityService.instance?.openQuickSettings() ?: false
+                TtsEngine.speak(if (ok) "Here you go." else "Not available on this Android version.")
+            }
+            text.contains("power menu") || text.contains("power dialog") -> {
+                JarvisAccessibilityService.instance?.openPowerDialog(); TtsEngine.speak("Here you go.")
+            }
+
+            text.contains("auto rotate") || text.contains("auto-rotate") -> {
+                val on = !(text.contains("off") || text.contains("turn off"))
+                val ok = SystemControlManager.setAutoRotate(context, on)
+                TtsEngine.speak(if (ok) "Done." else "I need the 'Modify system settings' permission first.")
+            }
+
+            text.contains("silent mode") -> {
+                val ok = SystemControlManager.setRingerMode(context, "silent")
+                TtsEngine.speak(if (ok) "Going silent." else "I need Do Not Disturb access first.")
+            }
+            text.contains("vibrate mode") -> {
+                val ok = SystemControlManager.setRingerMode(context, "vibrate")
+                TtsEngine.speak(if (ok) "Switched to vibrate." else "I need Do Not Disturb access first.")
+            }
+            text.contains("normal mode") || text.contains("ringer") -> {
+                SystemControlManager.setRingerMode(context, "normal")
+                TtsEngine.speak("Back to normal.")
+            }
+
             text.startsWith("open ") -> {
                 val appName = text.removePrefix("open ").trim()
                 narrate("Opening $appName…")
