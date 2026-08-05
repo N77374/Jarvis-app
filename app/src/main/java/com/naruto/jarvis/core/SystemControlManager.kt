@@ -161,4 +161,37 @@ object SystemControlManager {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
     }
+
+    // ---------- auto-rotate (needs WRITE_SETTINGS, same as brightness) ----------
+
+    fun setAutoRotate(context: Context, on: Boolean): Boolean {
+        if (!canWriteSettings(context)) return false
+        return try {
+            Settings.System.putInt(
+                context.contentResolver,
+                Settings.System.ACCELEROMETER_ROTATION,
+                if (on) 1 else 0
+            )
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    // ---------- ringer mode: normal / vibrate / silent ----------
+
+    fun setRingerMode(context: Context, mode: String): Boolean {
+        return try {
+            val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            if (mode != "normal" && !canAccessNotificationPolicy(context)) return false
+            am.ringerMode = when (mode) {
+                "silent" -> AudioManager.RINGER_MODE_SILENT
+                "vibrate" -> AudioManager.RINGER_MODE_VIBRATE
+                else -> AudioManager.RINGER_MODE_NORMAL
+            }
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
 }
