@@ -32,7 +32,9 @@ class FloatingBubbleService : Service(), JarvisStateListener, VoiceCommandPipeli
     private lateinit var windowManager: WindowManager
     private var bubbleView: View? = null
     private var statusLabel: TextView? = null
+    private var pauseBtn: TextView? = null
     private var params: WindowManager.LayoutParams? = null
+    private var isPaused = false
 
     override fun onCreate() {
         super.onCreate()
@@ -48,13 +50,18 @@ class FloatingBubbleService : Service(), JarvisStateListener, VoiceCommandPipeli
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(22, 16, 26, 16)
+            setPadding(20, 14, 14, 14)
             background = GradientDrawable().apply {
                 cornerRadius = 44f
                 setColor(0xE60D1113.toInt())
             }
         }
 
+        // Draggable, tap-to-talk zone: dot + status label
+        val dragArea = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
         val dot = View(this).apply {
             layoutParams = LinearLayout.LayoutParams(20, 20)
             background = GradientDrawable().apply {
@@ -62,17 +69,38 @@ class FloatingBubbleService : Service(), JarvisStateListener, VoiceCommandPipeli
                 setColor(0xFF45E8C9.toInt())
             }
         }
-
         val label = TextView(this).apply {
             text = "Jarvis"
             setTextColor(0xFFD6E0E3.toInt())
             textSize = 12f
-            setPadding(18, 0, 0, 0)
+            setPadding(18, 0, 14, 0)
         }
         statusLabel = label
+        dragArea.addView(dot)
+        dragArea.addView(label)
 
-        container.addView(dot)
-        container.addView(label)
+        // Pause/resume — greys the bubble out and stops it acting on taps, without fully closing it.
+        val pause = TextView(this).apply {
+            text = "⏸"
+            setTextColor(0xFF9AA7AC.toInt())
+            textSize = 14f
+            setPadding(14, 0, 14, 0)
+            setOnClickListener { togglePause() }
+        }
+        pauseBtn = pause
+
+        // Close — stops the service entirely, no need to reopen the app to turn it off.
+        val close = TextView(this).apply {
+            text = "✕"
+            setTextColor(0xFF9AA7AC.toInt())
+            textSize = 14f
+            setPadding(6, 0, 6, 0)
+            setOnClickListener { closeBubble() }
+        }
+
+        container.addView(dragArea)
+        container.addView(pause)
+        container.addView(close)
 
         params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -86,11 +114,13 @@ class FloatingBubbleService : Service(), JarvisStateListener, VoiceCommandPipeli
             y = 220
         }
 
-        // Drag to move; a small-movement release counts as a tap instead.
+        // Drag to move; a small-movement release counts as a tap-to-talk instead.
+        // Only the dragArea (dot+label) responds to this — the pause/close buttons
+        // handle their own taps independently, so they're never accidentally dragged.
         var startX = 0; var startY = 0
         var touchStartX = 0f; var touchStartY = 0f
 
-        container.setOnTouchListener { _, event ->
+        dragArea.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     startX = params!!.x; startY = params!!.y
@@ -117,13 +147,24 @@ class FloatingBubbleService : Service(), JarvisStateListener, VoiceCommandPipeli
         windowManager.addView(container, params)
     }
 
+    private fun togglePause() {
+        isPaused = !isPaused
+        pauseBtn?.text = if (isPaused) "▶" else "⏸"
+        updateStatus(if (isPaused) "Paused" else "Standby")
+    }
+
+    private fun closeBubble() {
+        getSharedPreferences("jarvis_prefs", MODE_PRIVATE).edit()
+            .putBoolean("bubble_enabled", false).apply()
+        stopSelf()
+    }
+
     private fun onBubbleTapped() {
+        if (isPaused) return
         if (JarvisStateManager.currentState == JarvisState.SLEEP) JarvisStateManager.wake()
         val started = VoiceCommandPipeline.startManual(applicationContext)
         if (started) {
             updateStatus("Listening…")
-            // Auto-stop after silence, same idea as the in-app mic — simple fixed window here
-            // since the bubble has no UI to show a manual stop button.
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 VoiceCommandPipeline.stopManual()
             }, 6000)
