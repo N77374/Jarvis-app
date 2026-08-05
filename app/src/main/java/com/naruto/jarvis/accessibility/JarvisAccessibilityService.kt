@@ -128,6 +128,41 @@ class JarvisAccessibilityService : AccessibilityService() {
         return performGlobalAction(GLOBAL_ACTION_HOME)
     }
 
+    /** Global system actions — everything Android's accessibility API genuinely allows. */
+
+    fun scroll(down: Boolean): Boolean {
+        val metrics = resources.displayMetrics
+        val width = metrics.widthPixels
+        val height = metrics.heightPixels
+        val startY = if (down) height * 0.75f else height * 0.25f
+        val endY = if (down) height * 0.25f else height * 0.75f
+        val path = android.graphics.Path().apply {
+            moveTo(width / 2f, startY)
+            lineTo(width / 2f, endY)
+        }
+        val gesture = android.accessibilityservice.GestureDescription.Builder()
+            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 300))
+            .build()
+        return dispatchGesture(gesture, null, null)
+    }
+
+    fun takeScreenshotAction(): Boolean =
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P)
+            performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT) else false
+
+    fun lockScreen(): Boolean =
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P)
+            performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN) else false
+
+    fun goBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
+    fun goHome(): Boolean = performGlobalAction(GLOBAL_ACTION_HOME)
+    fun openRecents(): Boolean = performGlobalAction(GLOBAL_ACTION_RECENTS)
+    fun openNotifications(): Boolean = performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+    fun openPowerDialog(): Boolean = performGlobalAction(GLOBAL_ACTION_POWER_DIALOG)
+
+    fun openQuickSettings(): Boolean =
+        if (android.os.Build.VERSION.SDK_INT >= 31) performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS) else false
+
     /** Grid Fallback ("Tap 4") --------------------------------------------- */
 
     /**
