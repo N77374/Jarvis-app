@@ -49,6 +49,13 @@ class MainActivity : ComponentActivity(), JarvisStateListener, VoiceCommandPipel
         setContentView(webView)
 
         requestRuntimePermissions()
+
+        // Bubble on/off state is now native-authoritative (the bubble itself can turn
+        // itself off via its ✕ button), so restore it here rather than trusting only
+        // whatever JS had cached from localStorage last time.
+        val bubbleWasOn = getSharedPreferences("jarvis_prefs", MODE_PRIVATE)
+            .getBoolean("bubble_enabled", false)
+        if (bubbleWasOn) setFloatingBubbleEnabled(true)
     }
 
     private fun requestRuntimePermissions() {
@@ -72,6 +79,8 @@ class MainActivity : ComponentActivity(), JarvisStateListener, VoiceCommandPipel
     fun setFloatingBubbleEnabled(enabled: Boolean) {
         val intent = Intent(this, FloatingBubbleService::class.java)
         if (enabled) startForegroundService(intent) else stopService(intent)
+        getSharedPreferences("jarvis_prefs", MODE_PRIVATE).edit()
+            .putBoolean("bubble_enabled", enabled).apply()
     }
 
     fun saveCityForNativeUse(city: String) {
