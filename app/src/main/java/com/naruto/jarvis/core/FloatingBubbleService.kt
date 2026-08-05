@@ -46,61 +46,66 @@ class FloatingBubbleService : Service(), JarvisStateListener, VoiceCommandPipeli
 
     private fun showBubble() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val density = resources.displayMetrics.density
 
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(20, 14, 14, 14)
+            setPadding((20 * density).toInt(), (14 * density).toInt(), (20 * density).toInt(), (14 * density).toInt())
             background = GradientDrawable().apply {
-                cornerRadius = 44f
-                setColor(0xE60D1113.toInt())
+                cornerRadius = 30f
+                setColor(0xFF000000.toInt())
             }
         }
 
-        // Draggable, tap-to-talk zone: dot + status label
-        val dragArea = LinearLayout(this).apply {
+        // Tap-to-talk zone: dot + status label, fills remaining space
+        val talkArea = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
         val dot = View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(20, 20)
+            layoutParams = LinearLayout.LayoutParams((14 * density).toInt(), (14 * density).toInt())
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(0xFF45E8C9.toInt())
             }
         }
         val label = TextView(this).apply {
-            text = "Jarvis"
+            text = "JARVIS — tap to talk"
             setTextColor(0xFFD6E0E3.toInt())
-            textSize = 12f
-            setPadding(18, 0, 14, 0)
+            textSize = 15f
+            setPadding((16 * density).toInt(), 0, 0, 0)
         }
         statusLabel = label
-        dragArea.addView(dot)
-        dragArea.addView(label)
+        talkArea.addView(dot)
+        talkArea.addView(label)
+        talkArea.setOnClickListener { onBubbleTapped() }
 
-        // Pause/resume — greys the bubble out and stops it acting on taps, without fully closing it.
         val pause = TextView(this).apply {
             text = "⏸"
-            setTextColor(0xFF9AA7AC.toInt())
-            textSize = 14f
-            setPadding(14, 0, 14, 0)
+            setTextColor(0xFFB7C1C5.toInt())
+            textSize = 20f
+            setPadding((18 * density).toInt(), 0, (18 * density).toInt(), 0)
             setOnClickListener { togglePause() }
         }
         pauseBtn = pause
 
-        // Close — stops the service entirely, no need to reopen the app to turn it off.
         val close = TextView(this).apply {
             text = "✕"
-            setTextColor(0xFF9AA7AC.toInt())
-            textSize = 14f
-            setPadding(6, 0, 6, 0)
+            setTextColor(0xFFB7C1C5.toInt())
+            textSize = 20f
+            setPadding((6 * density).toInt(), 0, (6 * density).toInt(), 0)
             setOnClickListener { closeBubble() }
         }
 
-        container.addView(dragArea)
+        container.addView(talkArea)
         container.addView(pause)
         container.addView(close)
+
+        // Sit just below the status bar, spanning the full screen width — fixed, not draggable.
+        val statusBarHeight = resources.getIdentifier("status_bar_height", "dimen", "android")
+            .let { if (it > 0) resources.getDimensionPixelSize(it) else (24 * density).toInt() }
 
         params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -109,38 +114,9 @@ class FloatingBubbleService : Service(), JarvisStateListener, VoiceCommandPipeli
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = 24
-            y = 220
-        }
-
-        // Drag to move; a small-movement release counts as a tap-to-talk instead.
-        // Only the dragArea (dot+label) responds to this — the pause/close buttons
-        // handle their own taps independently, so they're never accidentally dragged.
-        var startX = 0; var startY = 0
-        var touchStartX = 0f; var touchStartY = 0f
-
-        dragArea.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    startX = params!!.x; startY = params!!.y
-                    touchStartX = event.rawX; touchStartY = event.rawY
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    params!!.x = startX + (event.rawX - touchStartX).toInt()
-                    params!!.y = startY + (event.rawY - touchStartY).toInt()
-                    windowManager.updateViewLayout(container, params)
-                    true
-                }
-                MotionEvent.ACTION_UP -> {
-                    if (abs(event.rawX - touchStartX) < 12 && abs(event.rawY - touchStartY) < 12) {
-                        onBubbleTapped()
-                    }
-                    true
-                }
-                else -> false
-            }
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            x = 0
+            y = statusBarHeight + (8 * density).toInt()
         }
 
         bubbleView = container
