@@ -338,7 +338,7 @@ async function handleCommand(text) {
     return;
   }
 
-  const systemControlPattern = /flashlight|torch|volume|brightness|bluetooth|do not disturb|\bdnd\b|wifi|wi-fi/;
+  const systemControlPattern = /flashlight|torch|volume|brightness|bluetooth|do not disturb|\bdnd\b|wifi|wi-fi|scroll (up|down)|screenshot|lock (screen|the phone|my phone)|go back|go home|recent apps|show recents|notifications|quick settings|power (menu|dialog)|auto.?rotate|silent mode|vibrate mode|normal mode|ringer/;
   if (window.AndroidBridge && (systemControlPattern.test(text) || text.startsWith('close '))) {
     window.AndroidBridge.routeNative(text);
     return;
@@ -416,7 +416,6 @@ const wakeHint = $('wakeHint');
 
 $('settingsBtn').onclick = () => {
   $('cityInput').value = settings.city || '';
-  $('proxyInput').value = settings.proxyUrl || '';
   drawer.classList.add('open');
 };
 $('closeSettingsBtn').onclick = () => drawer.classList.remove('open');
@@ -465,7 +464,6 @@ if ($('bubbleOffBtn')) {
 
 $('saveSettingsBtn').onclick = () => {
   settings.city = $('cityInput').value.trim();
-  settings.proxyUrl = $('proxyInput').value.trim();
   settings.wakeEnabled = wakeEnabled;
   localStorage.setItem('jarvisSettings', JSON.stringify(settings));
   if (window.AndroidBridge && window.AndroidBridge.setCity) {
@@ -487,12 +485,8 @@ if (settings.wakeEnabled) {
   if (window.AndroidBridge) window.AndroidBridge.toggleWake(true);
   else startWakeListening();
 }
-if (settings.bubbleEnabled && window.AndroidBridge) {
-  window.AndroidBridge.toggleFloatingBubble(true);
-}
 
 // register service worker for installability (standalone website only)
 if ('serviceWorker' in navigator && !window.AndroidBridge) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
-   }
-     
+}
